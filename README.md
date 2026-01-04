@@ -101,6 +101,20 @@ volumes:
 - **SeedDMS Version:** Automatically updated from latest SourceForge release
 - **Port:** 80 (HTTP)
 
+## Included Extensions
+
+### LLM Document Classifier
+
+This image includes a custom extension that automatically classifies PDF documents using Large Language Models (LLMs).
+
+**Features:**
+- Automatic document naming based on content
+- Category assignment from configured SeedDMS categories
+- Keyword extraction for improved searchability
+- Support for OpenAI, Azure OpenAI, and Ollama
+
+See the [extension documentation](ext/llmclassifier/README.md) for configuration details.
+
 ## Automatic Updates
 
 This repository includes automated workflows that:

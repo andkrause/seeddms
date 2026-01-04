@@ -30,6 +30,9 @@ RUN mkdir -p /var/seeddms
 # Copy SeedDMS files from downloader stage
 COPY --from=downloader /tmp/seeddms/seeddms60x /var/seeddms/seeddms60x
 
+# Copy LLM Classifier extension
+COPY ext/llmclassifier /var/seeddms/seeddms60x/www/ext/llmclassifier
+
 #Only for Installation (Temporary Fix)
 #BEGIN
 #RUN ln -sf /var/seeddms/seeddms60x/vendor /var/seeddms/seeddms60x/seeddms-6.0.37/vendor
