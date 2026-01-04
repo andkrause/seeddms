@@ -5,7 +5,7 @@ FROM andy008/php4seeddms:8.5.1-apache-trixie AS downloader
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy the URL file and read it
-COPY seedms-apache/SEEDDMS_URL /tmp/seeddms_url.txt
+COPY ./SEEDDMS_URL /tmp/seeddms_url.txt
 
 # Read URL from file and download SeedDMS
 RUN SEEDDMS_URL=$(cat /tmp/seeddms_url.txt | tr -d '\n\r') \
