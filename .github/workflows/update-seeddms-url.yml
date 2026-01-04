@@ -1,0 +1,83 @@
+name: Check for SeedDMS Updates
+
+on:
+  schedule:
+    # Run daily at 6:00 AM UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Fetch latest SeedDMS release info
+        id: fetch
+        run: |
+          # Fetch the best release JSON from SourceForge
+          RELEASE_JSON=$(curl -fsSL "https://sourceforge.net/projects/seeddms/best_release.json")
+          
+          # Extract the download URL
+          NEW_URL=$(echo "$RELEASE_JSON" | jq -r '.release.url')
+          
+          # Extract version from filename (e.g., seeddms-6.0.37)
+          VERSION=$(echo "$RELEASE_JSON" | jq -r '.release.filename' | grep -oP 'seeddms-\d+\.\d+\.\d+' | head -1)
+          
+          echo "new_url=$NEW_URL" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Found latest version: $VERSION"
+          echo "Download URL: $NEW_URL"
+
+      - name: Check if update is needed
+        id: check
+        run: |
+          CURRENT_URL=$(cat SEEDDMS_URL | tr -d '\n\r' | head -1)
+          NEW_URL="${{ steps.fetch.outputs.new_url }}"
+          
+          echo "Current URL: $CURRENT_URL"
+          echo "New URL: $NEW_URL"
+          
+          if [ "$CURRENT_URL" = "$NEW_URL" ]; then
+            echo "No update needed"
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+          else
+            echo "Update available!"
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update SEEDDMS_URL file
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          echo "${{ steps.fetch.outputs.new_url }}" > SEEDDMS_URL
+
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update SeedDMS to ${{ steps.fetch.outputs.version }}"
+          title: "Update SeedDMS to ${{ steps.fetch.outputs.version }}"
+          body: |
+            This PR updates SeedDMS to version **${{ steps.fetch.outputs.version }}**.
+            
+            **New download URL:**
+            ```
+            ${{ steps.fetch.outputs.new_url }}
+            ```
+            
+            This update was automatically detected from the [SourceForge releases](https://sourceforge.net/projects/seeddms/files/).
+            
+            ---
+            *This PR was automatically created by the SeedDMS update checker workflow.*
+          branch: update-seeddms-${{ steps.fetch.outputs.version }}
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+
