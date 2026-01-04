@@ -1,7 +1,8 @@
 # SeedDMS Docker Image
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/andy008/seeddms)](https://hub.docker.com/r/andy008/seeddms)
-[![Docker Image Size](https://img.shields.io/docker/image-size/andy008/seeddms/latest)](https://hub.docker.com/r/andy008/seeddms)
+[![Docker Image Size](https://img.shields.io/docker/image-size/andy008/seeddms/latest?style=flat)](https://hub.docker.com/r/andy008/seeddms)
+[![Docker Image Version](https://img.shields.io/docker/v/andy008/seeddms/latest)](https://hub.docker.com/r/andy008/seeddms)
 
 Multi-architecture Docker image for [SeedDMS](https://www.seeddms.org/), a document management system. This image ([`andy008/seeddms`](https://hub.docker.com/r/andy008/seeddms)) provides **native support for both `linux/amd64` and `linux/arm64` architectures**, making it ideal for ARM-based systems like Apple Silicon Macs, Raspberry Pi, and other ARM64 servers.
 
