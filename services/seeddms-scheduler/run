@@ -17,9 +17,13 @@ SCHEDULER_CLI="/var/seeddms/seeddms60x/seeddms/utils/seeddms-schedulercli"
 CONFIG_FILE="/var/seeddms/seeddms60x/conf/settings.xml"
 INTERVAL="${SEEDDMS_SCHEDULER_INTERVAL:-300}"
 
+# Handle shutdown signals gracefully
+trap 'exit 0' TERM INT HUP
+
 # Main scheduler loop
 while true; do
-  sleep "${INTERVAL}"
+  sleep "${INTERVAL}" &
+  wait $!
   
   # Check if required files exist
   if [ ! -f "${SCHEDULER_CLI}" ]; then
