@@ -1,0 +1,40 @@
+#!/bin/sh
+set -e
+
+# Load environment variables from s6-overlay
+# s6-overlay stores env vars as files: filename=var name, content=value
+for dir in /var/run/s6/container_environment /container/environment; do
+  if [ -d "$dir" ]; then
+    for file in "$dir"/*; do
+      if [ -f "$file" ] && [ -r "$file" ]; then
+        export "$(basename "$file")=$(cat "$file")"
+      fi
+    done
+  fi
+done
+
+SCHEDULER_CLI="/var/seeddms/seeddms60x/seeddms/utils/seeddms-schedulercli"
+CONFIG_FILE="/var/seeddms/seeddms60x/conf/settings.xml"
+INTERVAL="${SEEDDMS_SCHEDULER_INTERVAL:-300}"
+
+# Main scheduler loop
+while true; do
+  sleep "${INTERVAL}"
+  
+  # Check if required files exist
+  if [ ! -f "${SCHEDULER_CLI}" ]; then
+    echo "ERROR: Scheduler CLI not found at ${SCHEDULER_CLI}" >&2
+    continue
+  fi
+  
+  if [ ! -f "${CONFIG_FILE}" ]; then
+    echo "ERROR: Config file not found at ${CONFIG_FILE}" >&2
+    continue
+  fi
+  
+  # Run scheduled tasks (only log errors)
+  if ! "${SCHEDULER_CLI}" --config "${CONFIG_FILE}" --mode=run >/dev/null 2>&1; then
+    echo "ERROR: Scheduled tasks execution failed (exit code: $?)" >&2
+  fi
+done
+

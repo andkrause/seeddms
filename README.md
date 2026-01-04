@@ -1,9 +1,9 @@
 # SeedDMS Docker Image
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/andy008/seeddms.svg)](https://hub.docker.com/r/andy008/seeddms)
+[![Docker Pulls](https://img.shields.io/docker/pulls/andy008/seeddms)](https://hub.docker.com/r/andy008/seeddms)
 [![Docker Image Size](https://img.shields.io/docker/image-size/andy008/seeddms/latest)](https://hub.docker.com/r/andy008/seeddms)
 
-Multi-architecture Docker image for [SeedDMS](https://www.seeddms.org/), a document management system. This image provides **native support for both `linux/amd64` and `linux/arm64` architectures**, making it ideal for ARM-based systems like Apple Silicon Macs, Raspberry Pi, and other ARM64 servers.
+Multi-architecture Docker image for [SeedDMS](https://www.seeddms.org/), a document management system. This image ([`andy008/seeddms`](https://hub.docker.com/r/andy008/seeddms)) provides **native support for both `linux/amd64` and `linux/arm64` architectures**, making it ideal for ARM-based systems like Apple Silicon Macs, Raspberry Pi, and other ARM64 servers.
 
 ## Why This Image?
 
@@ -101,7 +101,65 @@ volumes:
 - **SeedDMS Version:** Automatically updated from latest SourceForge release
 - **Port:** 80 (HTTP)
 
-## Included Extensions
+## Features
+
+### Built-in Scheduler
+
+This image includes a **lightweight scheduler** that automatically runs SeedDMS scheduled tasks.
+
+**How it works:**
+- Managed by **s6-overlay** process supervisor for reliability
+- Automatically executes scheduled tasks configured in the SeedDMS admin interface
+- Runs alongside Apache with automatic restart on failure
+- No additional dependencies or disk space required
+- Configurable interval via environment variable
+
+**Configuration:**
+
+The scheduler interval can be customized using the `SEEDDMS_SCHEDULER_INTERVAL` environment variable (in seconds). Default is 300 seconds (5 minutes).
+
+```yaml
+services:
+  seeddms:
+    image: andy008/seeddms:latest
+    environment:
+      - SEEDDMS_SCHEDULER_INTERVAL=600  # Run every 10 minutes
+```
+
+Or with `docker run`:
+```bash
+docker run -e SEEDDMS_SCHEDULER_INTERVAL=600 andy008/seeddms:latest
+```
+
+**Required Setup:**
+
+The scheduler requires a SeedDMS user named `cli_scheduler` to exist. This is a SeedDMS user (not a system user) that must be created through the SeedDMS admin interface:
+
+1. Log in to SeedDMS as an administrator
+2. Go to **Admin → Users and Groups**
+3. Click **Add User**
+4. Create a user with the exact login name: `cli_scheduler`
+5. Set a password (this user won't be used for web login, but a password is required)
+6. Assign appropriate permissions (will be used to execute tasks)
+
+**Important:** The scheduler will fail with an error if this user doesn't exist. You'll see errors like:
+```
+Execution of tasks failed because of missing user 'cli_scheduler'. Will exit now.
+```
+
+**Testing the scheduler:**
+```bash
+# List all scheduled tasks
+docker exec seeddms /var/seeddms/seeddms60x/seeddms/utils/seeddms-schedulercli --mode=list
+
+# Run tasks immediately (dry-run)
+docker exec seeddms /var/seeddms/seeddms60x/seeddms/utils/seeddms-schedulercli --mode=dryrun
+```
+
+**Note:** Scheduler output is logged to Apache's error log. View with:
+```bash
+docker logs seeddms 2>&1 | grep -i scheduler
+```
 
 ### LLM Document Classifier
 
@@ -137,6 +195,15 @@ docker build -t andy008/seeddms:latest .
 ```
 
 ## Troubleshooting
+
+### Scheduler Errors: Missing `cli_scheduler` User
+
+If you see errors like:
+```
+Execution of tasks failed because of missing user 'cli_scheduler'. Will exit now.
+```
+
+This means the required scheduler user hasn't been created yet. See the **Built-in Scheduler** section above for instructions on creating the `cli_scheduler` user in SeedDMS.
 
 ### Permission Issues
 
