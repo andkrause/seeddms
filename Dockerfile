@@ -56,8 +56,7 @@ COPY --from=downloader /tmp/seeddms/seeddms60x /var/seeddms/seeddms60x
 # Copy LLM Classifier extension
 COPY ext/llmclassifier /var/seeddms/seeddms60x/www/ext/llmclassifier
 
-#Only for Installation (Temporary Fix)
-#BEGIN
+#BEGIN of temporary fix that prevents installing seeddms 6.0.37
 RUN ln -sf /var/seeddms/seeddms60x/vendor /var/seeddms/seeddms60x/seeddms-6.0.37/vendor
 
 # Fix namespace issue: PDO needs to be fully qualified in namespace context
@@ -84,7 +83,8 @@ COPY --from=downloader /tmp/s6-overlay/ /
 # Copy s6 service definitions in one step, then fix permissions
 COPY services/ /etc/services.d/
 RUN chmod 755 /etc/services.d/apache/run /etc/services.d/seeddms-scheduler/run \
-    && chmod 644 /etc/services.d/apache/type /etc/services.d/seeddms-scheduler/type
+    && chmod 644 /etc/services.d/apache/type /etc/services.d/seeddms-scheduler/type \
+    && chmod 644 /etc/services.d/seeddms-scheduler/user
 
 # Expose volumes for data and configuration persistence
 # These match the volumes exposed by the usteinm/seeddms Docker image
