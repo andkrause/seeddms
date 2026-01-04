@@ -58,12 +58,12 @@ COPY ext/llmclassifier /var/seeddms/seeddms60x/www/ext/llmclassifier
 
 #Only for Installation (Temporary Fix)
 #BEGIN
-#RUN ln -sf /var/seeddms/seeddms60x/vendor /var/seeddms/seeddms60x/seeddms-6.0.37/vendor
+RUN ln -sf /var/seeddms/seeddms60x/vendor /var/seeddms/seeddms60x/seeddms-6.0.37/vendor
 
 # Fix namespace issue: PDO needs to be fully qualified in namespace context
 # The file is in Seeddms\Seeddms namespace, so "new PDO" becomes "new Seeddms\Seeddms\PDO"
 # We need to use "\PDO" to reference the global PDO class
-#RUN sed -i 's/new PDO(/new \\PDO(/g' /var/seeddms/seeddms60x/seeddms-6.0.37/inc/inc.ClassSettings.php
+RUN sed -i 's/new PDO(/new \\PDO(/g' /var/seeddms/seeddms60x/seeddms-6.0.37/inc/inc.ClassSettings.php
 #END
 
 # Set proper ownership and permissions
