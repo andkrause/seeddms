@@ -59,7 +59,8 @@ COPY --from=downloader /tmp/seeddms/seeddms60x /var/seeddms/seeddms60x
 # Copy LLM Classifier extension
 COPY ext/llmclassifier /var/seeddms/seeddms60x/www/ext/llmclassifier
 
-#BEGIN of temporary fix that prevents installing seeddms 6.0.37
+#BEGIN of temporary fix that prevents installing seeddms 6.0.37 
+# see https://sourceforge.net/p/seeddms/tickets/573/#6022
 RUN ln -sf /var/seeddms/seeddms60x/vendor /var/seeddms/seeddms60x/seeddms-6.0.37/vendor
 
 # Fix namespace issue: PDO needs to be fully qualified in namespace context
