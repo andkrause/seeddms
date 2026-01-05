@@ -1,0 +1,25 @@
+#!/bin/bash
+# Scheduler loop - runs as www-data
+# This is a separate file to avoid quoting issues with execlineb
+
+trap 'echo "[scheduler] loop: caught SIGTERM"; exit 0' TERM
+trap 'echo "[scheduler] loop: caught SIGINT"; exit 0' INT
+
+INTERVAL="${SEEDDMS_SCHEDULER_INTERVAL:-300}"
+CLI="/var/seeddms/seeddms60x/seeddms/utils/seeddms-schedulercli"
+CONF="/var/seeddms/seeddms60x/conf/settings.xml"
+
+echo "[scheduler] loop: user=$(whoami) interval=${INTERVAL}s pid=$$"
+
+while true; do
+  # Run the scheduler task
+  if [ -x "$CLI" ] && [ -f "$CONF" ]; then
+    "$CLI" --config "$CONF" --mode=run 2>&1 || true
+  fi
+  
+  # Interruptible sleep - start in background and wait
+  # This allows trap to interrupt immediately
+  sleep "$INTERVAL" &
+  wait $! || exit 0
+done
+

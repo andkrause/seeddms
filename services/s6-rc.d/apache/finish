@@ -1,0 +1,4 @@
+#!/bin/sh
+# Apache finish script
+# We use /bin/sh to ensure simple logging to stdout
+echo "[apache] finish: stopped with exit code $1 and signal $2"

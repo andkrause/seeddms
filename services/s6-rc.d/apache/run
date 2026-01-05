@@ -1,0 +1,34 @@
+#!/bin/sh
+# Apache service run script
+# Using shell to explicitely handle signals
+
+# Load container environment
+if [ -d /var/run/s6/container_environment ]; then
+    for file in /var/run/s6/container_environment/*; do
+        [ -r "$file" ] && export "$(basename "$file")=$(cat "$file")"
+    done
+fi
+
+echo "[apache] starting apache2-foreground..."
+
+# Define cleanup function
+stop_apache() {
+    echo "[apache] run: caught SIGTERM, forwarding to apache (pid $PID)"
+    kill -TERM "$PID" 2>/dev/null
+    wait "$PID"
+    EXIT_CODE=$?
+    echo "[apache] run: apache exited with code $EXIT_CODE"
+    exit $EXIT_CODE
+}
+
+# Trap signals
+trap stop_apache TERM INT
+
+# Start apache in background so we can wait on it
+apache2-foreground &
+PID=$!
+
+echo "[apache] run: apache started with pid $PID"
+
+# Wait for apache
+wait "$PID"

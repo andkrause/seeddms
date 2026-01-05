@@ -1,0 +1,8 @@
+#!/command/execlineb -S0
+# finish script - runs when scheduler exits
+# $1 = exit code, $2 = signal number (0 if exited normally)
+
+foreground {
+  redirfd -w 1 /dev/stdout
+  echo "[scheduler] finish: exitcode=${1} signal=${2}"
+}

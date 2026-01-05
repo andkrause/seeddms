@@ -43,6 +43,9 @@ ENV APACHE_DOCUMENT_ROOT=/var/seeddms/seeddms60x/www/
 # Scheduler interval in seconds (default: 300 = 5 minutes)
 ENV SEEDDMS_SCHEDULER_INTERVAL=300
 
+# s6-overlay configuration: give services 20 seconds to stop gracefully before SIGKILL
+ENV S6_KILL_GRACETIME=20000
+
 # Configure Apache to use the new document root (expand at build time)
 RUN sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/sites-available/*.conf \
     && sed -ri -e "s!/var/www/!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
@@ -80,11 +83,10 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 # Copy s6-overlay from downloader stage
 COPY --from=downloader /tmp/s6-overlay/ /
 
-# Copy s6 service definitions in one step, then fix permissions
-COPY services/ /etc/services.d/
-RUN chmod 755 /etc/services.d/apache/run /etc/services.d/seeddms-scheduler/run \
-    && chmod 644 /etc/services.d/apache/type /etc/services.d/seeddms-scheduler/type \
-    && chmod 644 /etc/services.d/seeddms-scheduler/user
+# Copy s6-rc service definitions
+COPY services/s6-rc.d/ /etc/s6-overlay/s6-rc.d/
+RUN chmod +x /etc/s6-overlay/s6-rc.d/apache/run /etc/s6-overlay/s6-rc.d/apache/finish \
+/etc/s6-overlay/s6-rc.d/seeddms-scheduler/run /etc/s6-overlay/s6-rc.d/seeddms-scheduler/finish /etc/s6-overlay/s6-rc.d/seeddms-scheduler/scheduler-loop
 
 # Expose volumes for data and configuration persistence
 # These match the volumes exposed by the usteinm/seeddms Docker image
@@ -92,6 +94,9 @@ VOLUME ["/var/seeddms/seeddms60x/data", "/var/seeddms/seeddms60x/conf"]
 
 # Expose port 80
 EXPOSE 80
+
+# Ensure Docker sends SIGTERM to PID 1 on stop (base images often set SIGWINCH)
+STOPSIGNAL SIGTERM
 
 # Use s6-overlay as entrypoint
 ENTRYPOINT ["/init"]

@@ -1,0 +1,10 @@
+#!/command/execlineb -P
+# SeedDMS scheduler longrun service - s6-overlay v3
+
+fdmove -c 2 1
+s6-envdir /var/run/s6/container_environment
+
+foreground { echo "[scheduler] run: starting as www-data" }
+
+s6-setuidgid www-data
+/etc/s6-overlay/s6-rc.d/seeddms-scheduler/scheduler-loop
