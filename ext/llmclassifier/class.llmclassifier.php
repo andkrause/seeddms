@@ -79,19 +79,24 @@ class SeedDMS_LLMClient {
     /** @var bool Whether this is an Azure OpenAI endpoint */
     private $isAzure;
 
+    /** @var float Temperature for random sampling (0.0 - 2.0) */
+    private $temperature;
+
     /**
      * Constructor
      *
-     * @param string      $endpoint   API endpoint URL
-     * @param string      $apiKey     API key for authentication
-     * @param string      $model      Model name or Azure deployment name
-     * @param string|null $apiVersion API version (Azure only)
-     * @param object|null $logger     Logger instance for error logging
+     * @param string      $endpoint    API endpoint URL
+     * @param string      $apiKey      API key for authentication
+     * @param string      $model       Model name or Azure deployment name
+     * @param float       $temperature Temperature setting (0.0 - 2.0)
+     * @param string|null $apiVersion  API version (Azure only)
+     * @param object|null $logger      Logger instance for error logging
      */
-    public function __construct($endpoint, $apiKey, $model, $apiVersion = null, $logger = null) {
+    public function __construct($endpoint, $apiKey, $model, $temperature = 0.3, $apiVersion = null, $logger = null) {
         $this->endpoint = rtrim($endpoint, '/');
         $this->apiKey = $apiKey;
         $this->model = $model;
+        $this->temperature = $temperature;
         $this->apiVersion = $apiVersion;
         $this->logger = $logger;
 
@@ -130,7 +135,7 @@ class SeedDMS_LLMClient {
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $userMessage]
             ],
-            'temperature' => 0.3,
+            'temperature' => $this->temperature,
             'response_format' => ['type' => 'json_object']
         ];
 
@@ -410,6 +415,7 @@ class SeedDMS_DocumentClassifier {
             $this->extSettings['llm_endpoint'] ?? '',
             $this->extSettings['llm_api_key'] ?? '',
             $this->extSettings['llm_model'] ?? 'gpt-4o',
+            (float)($this->extSettings['llm_temperature'] ?? 0.3),
             $this->extSettings['llm_api_version'] ?? null,
             $logger
         );

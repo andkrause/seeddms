@@ -65,6 +65,13 @@ $EXT_CONF['llmclassifier'] = array(
             'placeholder' => 'gpt-4o, llama3.2, or Azure deployment name',
         ),
 
+        'llm_temperature' => array(
+            'title' => 'Temperature (0.0 - 2.0)',
+            'type' => 'input',
+            'size' => 10,
+            'placeholder' => '0.3',
+        ),
+
         'llm_api_version' => array(
             'title' => 'API Version (Azure only)',
             'type' => 'input',

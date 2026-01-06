@@ -30,6 +30,8 @@ $__lang['de_DE'] = array(
     'llm_api_key_desc' => 'Authentifizierungsschlüssel für den LLM-Dienst',
     'llm_model' => 'Modell / Deployment-Name',
     'llm_model_desc' => 'Modellname (z.B. gpt-4o) oder Azure Deployment-Name',
+    'llm_temperature' => 'Temperatur (0.0 - 2.0)',
+    'llm_temperature_desc' => 'Steuert die Kreativität des Modells (0.0 = deterministisch, 2.0 = sehr kreativ)',
     'llm_api_version' => 'API-Version (nur Azure)',
     'llm_api_version_desc' => 'API-Version für Azure OpenAI (z.B. 2024-02-15-preview)',
 
@@ -78,6 +80,8 @@ $__lang['en_GB'] = array(
     'llm_api_key_desc' => 'Authentication key for the LLM service',
     'llm_model' => 'Model / Deployment Name',
     'llm_model_desc' => 'Model name (e.g., gpt-4o) or Azure deployment name',
+    'llm_temperature' => 'Temperature (0.0 - 2.0)',
+    'llm_temperature_desc' => 'Controls model creativity (0.0 = deterministic, 2.0 = highly creative)',
     'llm_api_version' => 'API Version (Azure only)',
     'llm_api_version_desc' => 'API version for Azure OpenAI (e.g., 2024-02-15-preview)',
 
