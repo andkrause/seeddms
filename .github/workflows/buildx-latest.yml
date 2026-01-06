@@ -43,6 +43,7 @@ jobs:
             password: ${{ secrets.DOCKERHUB_PASSWORD }}
             repository: andkrause/seeddms
             readme-filepath: ./README.md
+            enable-url-completion: true
       - name: Image digest
         run: "echo Image Digest: ${{ steps.docker_build.outputs.digest }}"
       - name: Image Tag
