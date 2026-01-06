@@ -41,7 +41,7 @@ jobs:
         with:
             username: ${{ secrets.DOCKERHUB_USERNAME }}
             password: ${{ secrets.DOCKERHUB_PASSWORD }}
-            repository: andkrause/seeddms
+            repository: andy008/seeddms
             readme-filepath: ./README.md
             enable-url-completion: true
       - name: Image digest
