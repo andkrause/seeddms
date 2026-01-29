@@ -1,5 +1,5 @@
 # Stage 1: Download and extract SeedDMS
-FROM andy008/php4seeddms:8.5.1-apache-trixie AS downloader
+FROM andy008/php4seeddms:8.5.2-apache-trixie AS downloader
 
 # Install curl and xz-utils for downloading
 RUN apt-get update && \
@@ -35,7 +35,7 @@ RUN SEEDDMS_URL=$(cat /tmp/seeddms_url.txt | tr -d '\n\r') \
     && rm /tmp/seeddms.tar.gz
 
 # Stage 2: Final image
-FROM andy008/php4seeddms:8.5.1-apache-trixie
+FROM andy008/php4seeddms:8.5.2-apache-trixie
 
 # Set Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/seeddms/seeddms60x/www/
