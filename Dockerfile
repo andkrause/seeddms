@@ -34,6 +34,13 @@ RUN SEEDDMS_URL=$(cat /tmp/seeddms_url.txt | tr -d '\n\r') \
     && tar -xzC /tmp/seeddms -f /tmp/seeddms.tar.gz \
     && rm /tmp/seeddms.tar.gz
 
+# Apply patches to $PHP_INI_DIR/php.ini-production 
+WORKDIR /tmp/php-ini
+COPY --chown=www-data:www-data --chmod=+x ./build-scripts/php-ini-customizer.sh .
+COPY --chown=www-data:www-data ./resources/php-ini-overwrites.txt .
+RUN cp "$PHP_INI_DIR/php.ini-production" . \
+        && ./php-ini-customizer.sh --overwrites php-ini-overwrites.txt --php-ini-file php.ini-production
+
 # Stage 2: Final image
 FROM andy008/php4seeddms:8.5.2-apache-trixie
 
@@ -79,7 +86,7 @@ RUN chown -R www-data:www-data /var/seeddms/seeddms60x \
 RUN a2enmod rewrite headers
 
 # Get the configured php.ini
-COPY --chown=www-data:www-data ./resources/php.ini "$PHP_INI_DIR/php.ini"
+COPY --from=downloader /tmp/php-ini/php.ini-production "$PHP_INI_DIR/php.ini"
 
 # Copy s6-overlay from downloader stage
 COPY --from=downloader /tmp/s6-overlay/ /
