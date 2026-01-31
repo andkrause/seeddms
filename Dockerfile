@@ -78,8 +78,8 @@ RUN chown -R www-data:www-data /var/seeddms/seeddms60x \
 # Enable required Apache modules
 RUN a2enmod rewrite headers
 
-# Use the default production configuration
-RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+# Get the configured php.ini
+COPY --chown=www-data:www-data ./resources/php.ini "$PHP_INI_DIR/php.ini"
 
 # Copy s6-overlay from downloader stage
 COPY --from=downloader /tmp/s6-overlay/ /
