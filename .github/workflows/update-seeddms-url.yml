@@ -58,7 +58,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: update SeedDMS to ${{ steps.fetch.outputs.version }}"
@@ -77,6 +77,7 @@ jobs:
             *This PR was automatically created by the SeedDMS update checker workflow.*
           branch: update-seeddms-${{ steps.fetch.outputs.version }}
           delete-branch: true
+          assignees: "andkrause"
           labels: |
             dependencies
             automated
