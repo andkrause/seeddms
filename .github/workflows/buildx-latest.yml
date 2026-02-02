@@ -37,7 +37,7 @@ jobs:
           push: true
           tags: ${{ steps.docker_meta.outputs.tags }}
       - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@v4
+        uses: peter-evans/dockerhub-description@v5
         with:
             username: ${{ secrets.DOCKERHUB_USERNAME }}
             password: ${{ secrets.DOCKERHUB_PASSWORD }}
