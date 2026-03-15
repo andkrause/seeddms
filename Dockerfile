@@ -1,5 +1,5 @@
 # Stage 1: Download and extract SeedDMS
-FROM andy008/php4seeddms:8.5.3-apache-trixie AS downloader
+FROM andy008/php4seeddms:8.5.4-apache-trixie AS downloader
 
 # Install curl and xz-utils for downloading
 RUN apt-get update && \
