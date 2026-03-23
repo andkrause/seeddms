@@ -42,7 +42,7 @@ RUN cp "$PHP_INI_DIR/php.ini-production" . \
         && ./php-ini-customizer.sh --overwrites php-ini-overwrites.txt --php-ini-file php.ini-production
 
 # Stage 2: Final image
-FROM andy008/php4seeddms:8.5.3-apache-trixie
+FROM andy008/php4seeddms:8.5.4-apache-trixie
 
 # Set Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/seeddms/seeddms60x/www/
