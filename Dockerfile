@@ -27,12 +27,15 @@ RUN DEB_ARCH=$(dpkg --print-architecture) && \
 # Copy the URL file and read it
 COPY ./SEEDDMS_URL /tmp/seeddms_url.txt
 
-# Read URL from file and download SeedDMS
+# Read URL from file and download SeedDMS and create symlink to vendor directory
+# to prevent error resolving ../vendor/autoload.php
 RUN SEEDDMS_URL=$(cat /tmp/seeddms_url.txt | tr -d '\n\r') \
     && mkdir -p /tmp/seeddms \
     && curl -fsSL "$SEEDDMS_URL" -o /tmp/seeddms.tar.gz \
     && tar -xzC /tmp/seeddms -f /tmp/seeddms.tar.gz \
-    && rm /tmp/seeddms.tar.gz
+    && rm /tmp/seeddms.tar.gz \
+    && FOLDER_NAME=$(echo "$SEEDDMS_URL" | grep -oE 'seeddms-[0-9]+\.[0-9]+\.[0-9]+' | head -n 1) \
+    && ln -sf /var/seeddms/seeddms60x/vendor "/tmp/seeddms/seeddms60x/$FOLDER_NAME/vendor"
 
 # Apply patches to $PHP_INI_DIR/php.ini-production 
 WORKDIR /tmp/php-ini
@@ -65,16 +68,6 @@ COPY --from=downloader /tmp/seeddms/seeddms60x /var/seeddms/seeddms60x
 
 # Copy LLM Classifier extension
 COPY ext/llmclassifier /var/seeddms/seeddms60x/www/ext/llmclassifier
-
-#BEGIN of temporary fix that prevents installing seeddms 6.0.37 
-# see https://sourceforge.net/p/seeddms/tickets/573/#6022
-#RUN ln -sf /var/seeddms/seeddms60x/vendor /var/seeddms/seeddms60x/seeddms-6.0.38/vendor
-
-# Fix namespace issue: PDO needs to be fully qualified in namespace context
-# The file is in Seeddms\Seeddms namespace, so "new PDO" becomes "new Seeddms\Seeddms\PDO"
-# We need to use "\PDO" to reference the global PDO class
-#RUN sed -i 's/new PDO(/new \\PDO(/g' /var/seeddms/seeddms60x/seeddms-6.0.38/inc/inc.ClassSettings.php
-#END
 
 # Set proper ownership and permissions
 RUN chown -R www-data:www-data /var/seeddms/seeddms60x \

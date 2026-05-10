@@ -3,3 +3,5 @@ max_execution_time = 60
 max_input_time = 120
 post_max_size = 120M
 upload_max_filesize = 100M
+
+include_path=".:/usr/local/lib/php:/var/seeddms/seeddms60x"

@@ -11,6 +11,9 @@ CONF="/var/seeddms/seeddms60x/conf/settings.xml"
 
 echo "[scheduler] loop: user=$(whoami) interval=${INTERVAL}s pid=$$"
 
+# ---- FIX: Change into the base directory so relative paths resolve correctly ----
+cd /var/seeddms/seeddms60x/seeddms
+
 while true; do
   # Run the scheduler task
   if [ -x "$CLI" ] && [ -f "$CONF" ]; then
