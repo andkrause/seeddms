@@ -17,7 +17,7 @@
  * @license    GPL-2.0+
  * @package    SeedDMS
  * @subpackage Extensions
- * @version    1.1.0
+ * @version    1.1.1
  */
 
 /**

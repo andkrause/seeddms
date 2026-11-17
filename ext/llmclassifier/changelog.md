@@ -5,6 +5,18 @@ All notable changes to the LLM Document Classifier extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-17
+
+### Added
+- Optional reasoning effort and maximum output-token controls mapped to Responses and Chat Completions request fields.
+- Documentation covering model-dependent effort support, total reasoning/output ceilings, timeout behavior, and Luna support uncertainty.
+- Request-validation and actual SeedDMS save/reload regression tests.
+
+### Changed
+- Empty or missing temperature omits the parameter in every API mode; the implicit 0.3 default is removed. Set 0.3 explicitly to retain it.
+- Retained `omit` as a compatibility alias and documented `0.0` for persistent explicit zero.
+- Upgrade instructions require refreshing SeedDMS extension metadata before configuring new fields.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added

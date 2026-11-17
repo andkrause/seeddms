@@ -29,7 +29,7 @@ final class ConfigurationTest extends TestCase {
             }
         }
         $this->assertSame('8.2.0-', $EXT_CONF['llmclassifier']['constraints']['depends']['php']);
-        $this->assertSame('1.1.0', $EXT_CONF['llmclassifier']['version']);
+        $this->assertSame('1.1.1', $EXT_CONF['llmclassifier']['version']);
     }
 
     public static function settings(): array {

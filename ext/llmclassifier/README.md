@@ -27,7 +27,7 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
    ```sh
    bash build-scripts/package-llmclassifier.sh
    ```
-   Extract `dist/llmclassifier-1.1.0.tar.gz` and copy the complete `llmclassifier`
+   Extract `dist/llmclassifier-1.1.1.tar.gz` and copy the complete `llmclassifier`
    folder, including `vendor/`, to your SeedDMS extensions directory:
    ```
    /var/seeddms/seeddms60x/www/ext/llmclassifier/
@@ -65,7 +65,9 @@ Access extension settings via **Admin → Extension Manager → LLM Document Cla
 | **Model / Deployment Name** | Model to use (e.g., `gpt-4o`) or Azure deployment name |
 | **API Format** | Responses, Chat Completions, or Legacy Azure Chat Completions; empty retains old detection |
 | **Authentication** | `api-key`, Bearer, or None; independent of API format |
-| **Temperature** | Enter `omit` to exclude this model-dependent parameter; use `0.0` for zero; missing setting defaults to 0.3 |
+| **Temperature** | Empty/missing omits the parameter; use `0.0` for zero or e.g. `0.3` for explicit temperature |
+| **Reasoning Effort** | Optional, model-dependent effort level; empty leaves the service default |
+| **Maximum Output Tokens** | Optional positive integer ceiling on reasoning plus visible output tokens; empty sends no explicit cap |
 | **API Version (legacy Azure only)** | Used only for the legacy deployment-based API |
 
 ### Scope Settings
@@ -100,7 +102,9 @@ API Format: Responses
 Authentication: API Key (api-key)
 API Key: <your-foundry-api-key>
 Model: <your-deployment-name>
-Temperature: omit
+Temperature: (leave empty)
+Reasoning Effort: (leave empty initially for Luna)
+Maximum Output Tokens: (leave empty unless you want an explicit ceiling)
 API Version: (leave empty; ignored for Responses v1)
 ```
 
@@ -110,9 +114,40 @@ supports Responses and structured JSON Schema output. The extension requests
 `store: false` because classification needs no conversation history; this is
 not a guarantee of zero service-side retention.
 
-Use `omit` for models that reject temperature. Do not leave it blank to request
-omission: SeedDMS drops blank values (and the string `0`) during saving, restoring
-the legacy default of 0.3 on reload. Use `0.0` for persistent explicit zero.
+Leave temperature empty for models that reject it. Both empty and missing
+temperature omit the parameter in every API mode. The older `omit` value remains
+accepted but is no longer needed. SeedDMS drops the string `0` during saving;
+use `0.0` for persistent explicit zero.
+
+### Reasoning effort and token ceilings
+
+The two controls are independent and optional. Empty values send neither a
+guessed default nor `null`; the service/model chooses its defaults.
+
+| API Format | Effort request field | Output ceiling request field |
+|------------|----------------------|------------------------------|
+| Responses | `reasoning.effort` | `max_output_tokens` |
+| Chat Completions | `reasoning_effort` | `max_completion_tokens` |
+| Legacy Azure Chat Completions | `reasoning_effort` | `max_completion_tokens` |
+
+Effort choices are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`.
+This is a union of documented values: **not every model supports every value or
+the effort parameter itself**. Explicit `none` is not the same as leaving the
+setting empty. Configurable effort support for `gpt-6-luna` is unverified; leave
+it empty initially. For older Azure API versions and other compatible providers,
+confirm support before setting either control. Unsupported parameters are not
+silently removed or retried with different settings.
+
+The token ceiling must be a positive integer and includes hidden reasoning,
+visible answer text, and generated formatting tokens. It is not a separate
+thinking-token budget or a guaranteed spending cap. Too-small ceilings can
+exhaust output capacity before valid classification JSON is complete; incomplete
+results are rejected without applying metadata. Effort influences reasoning
+behavior, not an exact token allocation, latency, or cost. The separate HTTP
+timeout remains 120 seconds.
+
+See Microsoft's [reasoning model guidance](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning)
+for model-specific support and token accounting.
 
 API-key mode sends only `api-key`, not Bearer authentication. Bearer remains
 available for other services or a manually supplied access token; the extension
@@ -125,6 +160,9 @@ and header choice. Explicit settings override that fallback independently.
 For Foundry, set both fields explicitly as above. Legacy Azure keeps its
 deployment URL and dated API version; Responses does not use that URL format.
 Install the complete package including `vendor/`, not just the PHP files.
+As of **1.1.1**, missing temperature no longer sends the implicit `0.3` used by
+earlier versions. Enter `0.3` explicitly if you want that behavior. After deploying,
+refresh extension metadata, reopen settings, and save your desired controls.
 Malformed or incomplete classification objects are rejected before metadata is
 changed. Chat Completions providers must return `finish_reason: stop`; filtered,
 truncated, tool-call, or missing finish reasons are not applied. Legacy

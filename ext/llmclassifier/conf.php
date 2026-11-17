@@ -10,7 +10,7 @@
  * @license    GPL-2.0+
  * @package    SeedDMS
  * @subpackage Extensions
- * @version    1.1.0
+ * @version    1.1.1
  */
 
 $EXT_CONF['llmclassifier'] = array(
@@ -22,7 +22,7 @@ $EXT_CONF['llmclassifier'] = array(
     'title' => 'LLM Document Classifier',
     'description' => 'Automatically classifies PDF documents using AI. Analyzes document content to suggest names, assign categories, and add keywords.',
     'disable' => false,
-    'version' => '1.1.0',
+    'version' => '1.1.1',
     'releasedate' => '2026-11-17',
     'author' => array(
         'name' => 'Andreas Krause',
