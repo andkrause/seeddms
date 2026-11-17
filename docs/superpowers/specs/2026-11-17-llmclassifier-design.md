@@ -68,6 +68,16 @@ Allow an explicit blank temperature to omit the parameter (including numeric
 zero correctly when supplied). An absent setting retains the existing 0.3
 default. Document that reasoning models may require omission.
 
+### Approved persistence correction (2026-11-17)
+
+SeedDMS 6.0.42 drops falsey extension values during saving, including blank
+strings and `"0"`. Accept the nonempty value `omit` (case-insensitive, trimmed)
+to omit temperature persistently. Document `0.0` for persistent explicit zero.
+Retain in-memory blank behavior and absent-setting default for compatibility.
+Verify with the actual SeedDMS settings save/reload implementation. Upgrade
+instructions must include Extension Manager Refresh to regenerate cached
+extension metadata. User explicitly approved this correction.
+
 ## Request and result handling
 
 - Responses: send the deployment as `model` and the existing system/user
