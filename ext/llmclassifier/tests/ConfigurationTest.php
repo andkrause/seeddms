@@ -33,7 +33,7 @@ final class ConfigurationTest extends TestCase {
     }
 
     public static function settings(): array {
-        return [[[], true, 0.3], [['llm_temperature' => ''], false, null], [['llm_temperature' => '0'], true, 0.0]];
+        return [[[], true, 0.3], [['llm_temperature' => ''], false, null], [['llm_temperature' => '0'], true, 0.0], [['llm_temperature' => 'omit'], false, null], [['llm_temperature' => ' OMIT '], false, null], [['llm_temperature' => '0.0'], true, 0.0]];
     }
 
     #[DataProvider('settings')]

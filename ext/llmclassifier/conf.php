@@ -91,7 +91,7 @@ $EXT_CONF['llmclassifier'] = array(
             'title' => 'Temperature (0.0 - 2.0)',
             'type' => 'input',
             'size' => 10,
-            'placeholder' => '0.3',
+            'placeholder' => '0.3 or omit',
         ),
 
         'llm_api_version' => array(

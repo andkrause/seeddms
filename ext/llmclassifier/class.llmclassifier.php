@@ -464,9 +464,9 @@ class SeedDMS_DocumentClassifier {
         $this->logger = $logger;
         $this->extSettings = $settings->_extensions['llmclassifier'] ?? [];
 
-        // A missing temperature keeps the default; an explicit blank omits it.
+        // SeedDMS drops blank settings on save; "omit" persists explicit omission.
         $temperature = $this->extSettings['llm_temperature'] ?? 0.3;
-        $temperature = is_string($temperature) && trim($temperature) === '' ? null : (float)$temperature;
+        $temperature = is_string($temperature) && in_array(strtolower(trim($temperature)), ['', 'omit'], true) ? null : (float)$temperature;
 
         // Initialize LLM client
         $this->llmClient = new SeedDMS_LLMClient(

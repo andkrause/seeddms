@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Microsoft Foundry Responses v1 support with structured classification output and `store: false`.
 - Explicit, independent API format and authentication settings, including `api-key` without Bearer.
-- Blank temperature omits the parameter for models that do not support it.
+- Temperature value `omit` persistently excludes the parameter for models that do not support it; use `0.0` for zero because SeedDMS drops blank/`0` values on save.
+- Upgrade instructions include refreshing SeedDMS's cached extension metadata.
 
 ### Changed
 - Replaced custom cURL transport with locked `openai-php/client` and Guzzle dependencies.

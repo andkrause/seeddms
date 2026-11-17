@@ -40,6 +40,10 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
 
 3. Configure the extension (see Configuration section below)
 
+When upgrading by copying files or rebuilding the image, use **Admin → Extension
+Manager → Refresh** before configuring. SeedDMS caches extension metadata in its
+data directory; replacing `conf.php` alone does not refresh the visible fields.
+
 The repository's Dockerfile bundles locked production dependencies automatically.
 Source checkouts are not copy-ready until dependencies are installed. For local
 development, run `composer install` in `ext/llmclassifier`, then `composer test`.
@@ -61,7 +65,7 @@ Access extension settings via **Admin → Extension Manager → LLM Document Cla
 | **Model / Deployment Name** | Model to use (e.g., `gpt-4o`) or Azure deployment name |
 | **API Format** | Responses, Chat Completions, or Legacy Azure Chat Completions; empty retains old detection |
 | **Authentication** | `api-key`, Bearer, or None; independent of API format |
-| **Temperature** | Empty omits this model-dependent parameter; missing setting defaults to 0.3; zero is valid |
+| **Temperature** | Enter `omit` to exclude this model-dependent parameter; use `0.0` for zero; missing setting defaults to 0.3 |
 | **API Version (legacy Azure only)** | Used only for the legacy deployment-based API |
 
 ### Scope Settings
@@ -96,7 +100,7 @@ API Format: Responses
 Authentication: API Key (api-key)
 API Key: <your-foundry-api-key>
 Model: <your-deployment-name>
-Temperature: (leave empty for models that do not support it)
+Temperature: omit
 API Version: (leave empty; ignored for Responses v1)
 ```
 
@@ -105,6 +109,10 @@ supports Responses and structured JSON Schema output. The extension requests
 `name`, `categories`, and `keywords` as structured output. Each request uses
 `store: false` because classification needs no conversation history; this is
 not a guarantee of zero service-side retention.
+
+Use `omit` for models that reject temperature. Do not leave it blank to request
+omission: SeedDMS drops blank values (and the string `0`) during saving, restoring
+the legacy default of 0.3 on reload. Use `0.0` for persistent explicit zero.
 
 API-key mode sends only `api-key`, not Bearer authentication. Bearer remains
 available for other services or a manually supplied access token; the extension

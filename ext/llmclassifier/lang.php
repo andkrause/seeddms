@@ -41,7 +41,7 @@ $__lang['de_DE'] = array(
     'llm_model' => 'Modell / Deployment-Name',
     'llm_model_desc' => 'Modellname (z.B. gpt-4o) oder Azure Deployment-Name',
     'llm_temperature' => 'Temperatur (0.0 - 2.0)',
-    'llm_temperature_desc' => 'Leer = Parameter nicht senden (für manche Reasoning-Modelle erforderlich). Fehlende Einstellung: 0.3. Null ist ein gültiger Wert.',
+    'llm_temperature_desc' => 'omit = Parameter nicht senden (für manche Reasoning-Modelle erforderlich). 0.0 = Null. SeedDMS speichert leere Werte und 0 nicht; fehlende Einstellung: 0.3.',
     'llm_api_version' => 'API-Version (nur Legacy Azure)',
     'llm_api_version_desc' => 'Nur für Legacy Azure Chat Completions; Responses v1 benötigt keine datierte API-Version.',
 
@@ -101,7 +101,7 @@ $__lang['en_GB'] = array(
     'llm_model' => 'Model / Deployment Name',
     'llm_model_desc' => 'Model name (e.g., gpt-4o) or Azure deployment name',
     'llm_temperature' => 'Temperature (0.0 - 2.0)',
-    'llm_temperature_desc' => 'Empty omits the parameter (required by some reasoning models). Missing setting defaults to 0.3. Zero is a valid value.',
+    'llm_temperature_desc' => 'omit excludes the parameter (required by some reasoning models). Use 0.0 for zero. SeedDMS discards empty values and 0; missing setting defaults to 0.3.',
     'llm_api_version' => 'API Version (legacy Azure only)',
     'llm_api_version_desc' => 'Only for legacy Azure Chat Completions; Responses v1 needs no dated API version.',
 
