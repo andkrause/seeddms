@@ -23,7 +23,12 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
 
 ## Installation
 
-1. Copy the `llmclassifier` folder to your SeedDMS extensions directory:
+1. Build a copy-ready package with Docker (Composer runs only in the build container):
+   ```sh
+   bash build-scripts/package-llmclassifier.sh
+   ```
+   Extract `dist/llmclassifier-1.1.0.tar.gz` and copy the complete `llmclassifier`
+   folder, including `vendor/`, to your SeedDMS extensions directory:
    ```
    /var/seeddms/seeddms60x/www/ext/llmclassifier/
    ```
@@ -34,6 +39,13 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
    - Click the enable button
 
 3. Configure the extension (see Configuration section below)
+
+The repository's Dockerfile bundles locked production dependencies automatically.
+Source checkouts are not copy-ready until dependencies are installed. For local
+development, run `composer install` in `ext/llmclassifier`, then `composer test`.
+The SDK is community-maintained; dependencies are extension-local, but PHP class
+names are shared with SeedDMS. If other extensions load incompatible versions of
+Guzzle or PSR packages, verify the combined installation before deployment.
 
 ## Configuration
 
