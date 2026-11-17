@@ -122,6 +122,10 @@ class SeedDMS_LLMClient {
      */
     public function chatCompletion($systemPrompt, $userMessage) {
         try {
+            if (trim($this->endpoint) === '') {
+                $this->logError('LLM endpoint is required; no request was sent.');
+                return null;
+            }
             if (!in_array($this->apiFormat, ['responses', 'chat_completions', 'azure_chat_completions'], true)) {
                 throw new \InvalidArgumentException('Invalid API format setting');
             }
@@ -209,18 +213,38 @@ class SeedDMS_LLMClient {
                     $payload['model'] = $this->model;
                 }
                 $response = $client->chat()->create($payload);
+                if (($response->choices[0]->finishReason ?? null) !== 'stop') {
+                    $this->logError('Chat completion was not finished normally; check content filters and token limits.');
+                    return null;
+                }
                 $content = $response->choices[0]->message->content ?? null;
             }
             if (!is_string($content) || trim($content) === '') {
                 $this->logError('API response contained no classification text.');
                 return null;
             }
-            $result = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-            if (!is_array($result)) {
-                $this->logError('LLM classification must be a JSON object.');
+            $result = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
+            if (!$result instanceof \stdClass || !isset($result->name, $result->categories, $result->keywords) || !is_string($result->name)) {
+                $this->logError('LLM classification must contain a string name and category/keyword lists.');
                 return null;
             }
-            return $result;
+            foreach (['categories', 'keywords'] as $field) {
+                if ($field === 'keywords' && $this->apiFormat !== 'responses' && is_string($result->$field)) {
+                    // Existing Chat Completions installations accept comma-separated keywords.
+                    continue;
+                }
+                if (!is_array($result->$field) || !array_is_list($result->$field)) {
+                    $this->logError('LLM classification categories and keywords must be string lists.');
+                    return null;
+                }
+                foreach ($result->$field as $value) {
+                    if (!is_string($value)) {
+                        $this->logError('LLM classification categories and keywords must contain only strings.');
+                        return null;
+                    }
+                }
+            }
+            return ['name' => $result->name, 'categories' => $result->categories, 'keywords' => $result->keywords];
         } catch (\Throwable $error) {
             // Exception messages may contain API keys or echoed document text.
             if ($error instanceof \InvalidArgumentException) {

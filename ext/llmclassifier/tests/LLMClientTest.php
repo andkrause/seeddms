@@ -179,4 +179,62 @@ final class LLMClientTest extends TestCase {
         $method = new ReflectionMethod($client, 'getHttpClient');
         $this->assertSame(120, $method->invoke($client)->getConfig('timeout'));
     }
+
+    public static function blankEndpoints(): array { return [[''], ['   ']]; }
+
+    #[DataProvider('blankEndpoints')]
+    public function testBlankEndpointCannotFallBackToPublicOpenAI($endpoint): void {
+        $this->assertNull($this->client($this->success(), endpoint: $endpoint, auth: 'bearer')->chatCompletion('JSON', 'Private document'));
+        $this->assertCount(0, $this->history);
+        $this->assertNotEmpty($this->logger->messages);
+        $this->assertStringContainsString('endpoint', implode(' ', $this->logger->messages));
+    }
+
+    public static function malformedClassifications(): array {
+        return [
+            ['[]'], ['{"name":"Changed title"}'],
+            ['{"name":{},"categories":[],"keywords":[]}'],
+            ['{"name":"Changed title","categories":[{}],"keywords":[]}'],
+            ['{"name":"Changed title","categories":[],"keywords":[{}]}'],
+            ['{"name":"Changed title","categories":{},"keywords":[]}'],
+            ['{"name":"Changed title","categories":[],"keywords":{"a":"Steuer"}}']
+        ];
+    }
+
+    #[DataProvider('malformedClassifications')]
+    public function testMalformedClassificationCannotChangeMetadata($json): void {
+        $data = json_decode($this->fixture('responses-success'), true);
+        $data['output'][1]['content'][0]['text'] = $json;
+        $result = $this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)))->chatCompletion('JSON', 'Document');
+        $this->assertNull($result);
+        $this->assertNotEmpty($this->logger->messages);
+        $classifier = new SeedDMS_DocumentClassifier((object)['_extensions' => []], new stdClass(), null);
+        $document = new class {
+            public string $name = 'Original title';
+            public function getID() { return 1; }
+            public function getName() { return $this->name; }
+            public function setName($name) { $this->name = $name; return true; }
+        };
+        $this->assertFalse($classifier->applyClassification($document, $result));
+        $this->assertSame('Original title', $document->name);
+    }
+
+    public function testLegacyCommaSeparatedKeywordsRemainCompatible(): void {
+        $data = json_decode($this->fixture('chat-success'), true);
+        $data['choices'][0]['message']['content'] = '{"name":"Invoice","categories":["Invoices"],"keywords":"Steuer, invoice"}';
+        $result = $this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)), endpoint: 'https://example.com/v1', format: 'chat_completions')->chatCompletion('JSON', 'Text');
+        $this->assertSame(['name' => 'Invoice', 'categories' => ['Invoices'], 'keywords' => 'Steuer, invoice'], $result);
+    }
+
+    public static function nonFinalChatReasons(): array {
+        return [['content_filter'], ['length'], ['tool_calls'], ['function_call'], [null]];
+    }
+
+    #[DataProvider('nonFinalChatReasons')]
+    public function testChatMustFinishNormallyBeforeApplyingJson($reason): void {
+        $data = json_decode($this->fixture('chat-success'), true);
+        $data['choices'][0]['finish_reason'] = $reason;
+        $this->assertNull($this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)), endpoint: 'https://example.com/v1', format: 'chat_completions')->chatCompletion('JSON', 'Text'));
+        $this->assertNotEmpty($this->logger->messages);
+    }
 }

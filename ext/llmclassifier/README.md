@@ -117,6 +117,10 @@ and header choice. Explicit settings override that fallback independently.
 For Foundry, set both fields explicitly as above. Legacy Azure keeps its
 deployment URL and dated API version; Responses does not use that URL format.
 Install the complete package including `vendor/`, not just the PHP files.
+Malformed or incomplete classification objects are rejected before metadata is
+changed. Chat Completions providers must return `finish_reason: stop`; filtered,
+truncated, tool-call, or missing finish reasons are not applied. Legacy
+comma-separated keyword strings remain supported in Chat Completions mode.
 
 ### OpenAI
 

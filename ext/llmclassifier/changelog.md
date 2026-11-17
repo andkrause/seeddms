@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raised minimum PHP version to 8.2; deploy the extension with its packaged `vendor/` dependencies.
 - Preserved legacy provider behavior when new settings are unset.
 - API failures no longer log raw response text or exception messages that could expose secrets.
+- Reject blank endpoints instead of allowing the SDK's default provider, validate classification fields before application, and reject non-final Chat Completions.
 
 ## [1.0.1] - 2026-01-06
 ### Added
