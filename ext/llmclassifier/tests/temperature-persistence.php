@@ -8,12 +8,13 @@ require dirname(__DIR__) . '/class.llmclassifier.php';
 $file = tempnam(sys_get_temp_dir(), 'temperature-test-');
 copy('/var/seeddms/seeddms60x/conf/settings.xml', $file);
 try {
-    foreach (['omit' => null, ' OMIT ' => null, '0.0' => 0.0, '' => 0.3, '0' => 0.3] as $input => $expected) {
+    foreach (['omit' => null, ' OMIT ' => null, '0.0' => 0.0, '' => null, '0' => null, '0.3' => 0.3] as $input => $expected) {
         $settings = new Seeddms\Seeddms\Settings($file);
         $settings->_extensions['llmclassifier'] = [
             '__disable__' => false, 'llm_endpoint' => 'https://example.com/openai/v1',
             'llm_model' => 'deployment', 'llm_api_format' => 'responses',
             'llm_auth_method' => 'none', 'llm_temperature' => (string)$input,
+            'llm_reasoning_effort' => $input === '' ? '' : 'low', 'llm_max_output_tokens' => $input === '' ? '' : '1200',
             'pdftotext_path' => '/bin/true'
         ];
         if (!$settings->save()) { throw new RuntimeException('Settings save failed'); }
@@ -31,8 +32,11 @@ try {
         if ($expected === null ? array_key_exists('temperature', $payload) : ($payload['temperature'] ?? null) != $expected) {
             throw new RuntimeException('Unexpected persisted temperature for ' . json_encode($input));
         }
+        if ($input === '' ? (array_key_exists('reasoning', $payload) || array_key_exists('max_output_tokens', $payload)) : (($payload['reasoning'] ?? null) !== ['effort' => 'low'] || ($payload['max_output_tokens'] ?? null) !== 1200)) {
+            throw new RuntimeException('Reasoning controls did not survive settings save/reload');
+        }
     }
-    echo "SeedDMS save/reload temperature checks passed (5 cases)\n";
+    echo "SeedDMS save/reload temperature and reasoning checks passed (6 cases)\n";
 } finally {
     unlink($file);
 }

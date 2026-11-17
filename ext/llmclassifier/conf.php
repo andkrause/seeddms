@@ -91,7 +91,25 @@ $EXT_CONF['llmclassifier'] = array(
             'title' => 'Temperature (0.0 - 2.0)',
             'type' => 'input',
             'size' => 10,
-            'placeholder' => '0.3 or omit',
+            'placeholder' => 'Empty = model default',
+        ),
+
+        'llm_reasoning_effort' => array(
+            'title' => 'Reasoning Effort (empty = model default)',
+            'type' => 'select',
+            'allow_empty' => true,
+            'options' => array(
+                'none' => 'effort_none', 'minimal' => 'effort_minimal',
+                'low' => 'effort_low', 'medium' => 'effort_medium',
+                'high' => 'effort_high', 'xhigh' => 'effort_xhigh', 'max' => 'effort_max',
+            ),
+        ),
+
+        'llm_max_output_tokens' => array(
+            'title' => 'Maximum Output Tokens (empty = model default)',
+            'type' => 'input',
+            'size' => 20,
+            'placeholder' => 'Empty = no explicit cap',
         ),
 
         'llm_api_version' => array(

@@ -80,6 +80,8 @@ class SeedDMS_LLMClient {
     private $apiFormat;
     private $authMethod;
     private $httpClient;
+    private $reasoningEffort;
+    private $maxOutputTokens;
 
     /** @var float Temperature for random sampling (0.0 - 2.0) */
     private $temperature;
@@ -94,7 +96,7 @@ class SeedDMS_LLMClient {
      * @param string|null $apiVersion  API version (Azure only)
      * @param object|null $logger      Logger instance for error logging
      */
-    public function __construct($endpoint, $apiKey, $model, $temperature = 0.3, $apiVersion = null, $logger = null, $apiFormat = null, $authMethod = null, $httpClient = null) {
+    public function __construct($endpoint, $apiKey, $model, $temperature = null, $apiVersion = null, $logger = null, $apiFormat = null, $authMethod = null, $httpClient = null, $reasoningEffort = null, $maxOutputTokens = null) {
         $this->endpoint = rtrim($endpoint, '/');
         $this->apiKey = $apiKey;
         $this->model = $model;
@@ -110,6 +112,8 @@ class SeedDMS_LLMClient {
         $this->apiFormat = $apiFormat ?: ($this->isAzure ? 'azure_chat_completions' : 'chat_completions');
         $this->authMethod = $authMethod ?: ($this->isAzure ? 'api-key' : 'bearer');
         $this->httpClient = $httpClient;
+        $this->reasoningEffort = $reasoningEffort;
+        $this->maxOutputTokens = $maxOutputTokens;
     }
 
     /**
@@ -131,6 +135,25 @@ class SeedDMS_LLMClient {
             }
             if (!in_array($this->authMethod, ['api-key', 'bearer', 'none'], true)) {
                 throw new \InvalidArgumentException('Invalid authentication setting');
+            }
+            $effort = $this->reasoningEffort;
+            if (is_string($effort)) {
+                $effort = trim($effort);
+            }
+            if ($effort !== null && $effort !== '' && !in_array($effort, ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], true)) {
+                $this->logError('Invalid reasoning effort setting; choose a supported effort or leave empty.');
+                return null;
+            }
+            $cap = $this->maxOutputTokens;
+            if (is_string($cap)) {
+                $cap = trim($cap);
+            }
+            if ($cap !== null && $cap !== '') {
+                if ((!is_int($cap) && (!is_string($cap) || !ctype_digit($cap))) ||
+                    ($cap = filter_var($cap, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])) === false) {
+                    $this->logError('Invalid maximum output tokens setting; enter a positive integer or leave empty.');
+                    return null;
+                }
             }
 
             $autoload = __DIR__ . '/vendor/autoload.php';
@@ -165,6 +188,16 @@ class SeedDMS_LLMClient {
                 ['role' => 'user', 'content' => $userMessage]
             ];
             $payload = [];
+            if ($effort !== null && $effort !== '') {
+                if ($this->apiFormat === 'responses') {
+                    $payload['reasoning'] = ['effort' => $effort];
+                } else {
+                    $payload['reasoning_effort'] = $effort;
+                }
+            }
+            if ($cap !== null && $cap !== '') {
+                $payload[$this->apiFormat === 'responses' ? 'max_output_tokens' : 'max_completion_tokens'] = $cap;
+            }
             if ($this->temperature !== null) {
                 $payload['temperature'] = $this->temperature;
             }
@@ -465,8 +498,8 @@ class SeedDMS_DocumentClassifier {
         $this->extSettings = $settings->_extensions['llmclassifier'] ?? [];
 
         // SeedDMS drops blank settings on save; "omit" persists explicit omission.
-        $temperature = $this->extSettings['llm_temperature'] ?? 0.3;
-        $temperature = is_string($temperature) && in_array(strtolower(trim($temperature)), ['', 'omit'], true) ? null : (float)$temperature;
+        $temperature = $this->extSettings['llm_temperature'] ?? null;
+        $temperature = $temperature === null || (is_string($temperature) && in_array(strtolower(trim($temperature)), ['', 'omit'], true)) ? null : (float)$temperature;
 
         // Initialize LLM client
         $this->llmClient = new SeedDMS_LLMClient(
@@ -477,7 +510,10 @@ class SeedDMS_DocumentClassifier {
             $this->extSettings['llm_api_version'] ?? null,
             $logger,
             $this->extSettings['llm_api_format'] ?? null,
-            $this->extSettings['llm_auth_method'] ?? null
+            $this->extSettings['llm_auth_method'] ?? null,
+            null,
+            $this->extSettings['llm_reasoning_effort'] ?? null,
+            $this->extSettings['llm_max_output_tokens'] ?? null
         );
 
         // Initialize PDF extractor

@@ -25,10 +25,10 @@ final class LLMClientTest extends TestCase {
         return file_get_contents(__DIR__ . '/fixtures/' . $name . '.json');
     }
 
-    private function client($reply, string $endpoint = 'https://resource.services.ai.azure.com/openai/v1', $format = 'responses', $auth = 'api-key', $temperature = 0.3, $version = null, $key = 'test-key', $model = 'deployment'): SeedDMS_LLMClient {
+    private function client($reply, string $endpoint = 'https://resource.services.ai.azure.com/openai/v1', $format = 'responses', $auth = 'api-key', $temperature = null, $version = null, $key = 'test-key', $model = 'deployment', $effort = null, $cap = null): SeedDMS_LLMClient {
         $stack = HandlerStack::create(new MockHandler([$reply]));
         $stack->push(Middleware::history($this->history));
-        return new SeedDMS_LLMClient($endpoint, $key, $model, $temperature, $version, $this->logger, $format, $auth, new Client(['handler' => $stack]));
+        return new SeedDMS_LLMClient($endpoint, $key, $model, $temperature, $version, $this->logger, $format, $auth, new Client(['handler' => $stack]), $effort, $cap);
     }
 
     private function success(string $fixture = 'responses-success'): Response {
@@ -236,5 +236,59 @@ final class LLMClientTest extends TestCase {
         $data['choices'][0]['finish_reason'] = $reason;
         $this->assertNull($this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)), endpoint: 'https://example.com/v1', format: 'chat_completions')->chatCompletion('JSON', 'Text'));
         $this->assertNotEmpty($this->logger->messages);
+    }
+
+    public static function reasoningModes(): array {
+        $cases = [];
+        foreach (['responses', 'chat_completions', 'azure_chat_completions'] as $format) {
+            foreach ([null, '', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as $effort) {
+                $cases[] = [$format, $effort, $effort === null ? null : ($effort === '' ? '' : ' 1200 ')];
+            }
+            $cases[] = [$format, null, 1200];
+            $cases[] = [$format, 'low', null];
+        }
+        return $cases;
+    }
+
+    #[DataProvider('reasoningModes')]
+    public function testReasoningControlsMapByApiFormat($format, $effort, $cap): void {
+        $this->assertNotNull($this->client($this->success($format === 'responses' ? 'responses-success' : 'chat-success'), format: $format, effort: $effort, cap: $cap)->chatCompletion('JSON', 'Text'));
+        $body = json_decode((string)$this->history[0]['request']->getBody(), true);
+        $this->assertArrayNotHasKey('max_tokens', $body);
+        $effortKey = $format === 'responses' ? 'reasoning' : 'reasoning_effort';
+        $capKey = $format === 'responses' ? 'max_output_tokens' : 'max_completion_tokens';
+        $this->assertArrayNotHasKey($format === 'responses' ? 'reasoning_effort' : 'reasoning', $body);
+        $this->assertArrayNotHasKey($format === 'responses' ? 'max_completion_tokens' : 'max_output_tokens', $body);
+        if ($effort === null || $effort === '') {
+            $this->assertArrayNotHasKey($effortKey, $body);
+        } else {
+            $this->assertSame($format === 'responses' ? ['effort' => $effort] : $effort, $body[$effortKey] ?? null);
+        }
+        if ($cap === null || $cap === '') {
+            $this->assertArrayNotHasKey($capKey, $body);
+        } else {
+            $this->assertSame(1200, $body[$capKey] ?? null);
+        }
+    }
+
+    public static function invalidReasoningControls(): array {
+        return [['bad', null], [null, 0], [null, -1], [null, 1.5], [null, '1e3'], [null, 'garbage'], [null, '999999999999999999999999999999'], [[], null], [null, []]];
+    }
+
+    #[DataProvider('invalidReasoningControls')]
+    public function testInvalidReasoningControlsDoNotSend($effort, $cap): void {
+        $this->assertNull($this->client($this->success(), effort: $effort, cap: $cap)->chatCompletion('JSON', 'Text'));
+        $this->assertCount(0, $this->history);
+        $this->assertNotEmpty($this->logger->messages);
+    }
+
+    public function testDirectClientDefaultOmitsTemperature(): void {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([$this->success('chat-success')]));
+        $stack->push(Middleware::history($history));
+        $client = new SeedDMS_LLMClient('https://example.com/v1', '', 'deployment');
+        (new ReflectionProperty($client, 'httpClient'))->setValue($client, new Client(['handler' => $stack]));
+        $this->assertNotNull($client->chatCompletion('JSON', 'Text'));
+        $this->assertArrayNotHasKey('temperature', json_decode((string)$history[0]['request']->getBody(), true));
     }
 }
