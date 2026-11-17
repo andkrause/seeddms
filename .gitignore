@@ -2,3 +2,6 @@
 testing/**
 .env
 docker-compose.yaml
+ext/llmclassifier/vendor/
+ext/llmclassifier/.phpunit.cache/
+dist/
