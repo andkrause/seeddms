@@ -11,12 +11,13 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
 - **Folder Scoping**: Limit classification to specific folder trees
 - **Default Category**: Automatically assign a category to all classified documents
 - **Keyword Restriction**: Optionally limit keywords to pre-configured lists
-- **Multi-Provider Support**: Works with OpenAI, Azure OpenAI, Ollama, and other compatible APIs
+- **Multi-Provider Support**: Microsoft Foundry Responses, OpenAI, legacy Azure OpenAI, Ollama, and compatible APIs via `openai-php/client`
 
 ## Requirements
 
 - SeedDMS 6.0.0 or higher
-- PHP 8.0 or higher
+- PHP 8.2 or higher
+- Packaged SDK dependencies (`vendor/` included; see installation below)
 - `pdftotext` utility (part of poppler-utils)
 - Access to an OpenAI-compatible LLM API
 
@@ -46,7 +47,10 @@ Access extension settings via **Admin → Extension Manager → LLM Document Cla
 | **LLM API Endpoint** | URL of the LLM API (see provider examples below) |
 | **API Key** | Your API key for authentication |
 | **Model / Deployment Name** | Model to use (e.g., `gpt-4o`) or Azure deployment name |
-| **API Version (Azure only)** | Required for Azure OpenAI (e.g., `2024-02-15-preview`) |
+| **API Format** | Responses, Chat Completions, or Legacy Azure Chat Completions; empty retains old detection |
+| **Authentication** | `api-key`, Bearer, or None; independent of API format |
+| **Temperature** | Empty omits this model-dependent parameter; missing setting defaults to 0.3; zero is valid |
+| **API Version (legacy Azure only)** | Used only for the legacy deployment-based API |
 
 ### Scope Settings
 
@@ -72,10 +76,42 @@ Access extension settings via **Admin → Extension Manager → LLM Document Cla
 
 ## LLM Provider Configuration
 
+### Microsoft Foundry (Responses v1)
+
+```
+Endpoint: https://<resource>.services.ai.azure.com/openai/v1/responses
+API Format: Responses
+Authentication: API Key (api-key)
+API Key: <your-foundry-api-key>
+Model: <your-deployment-name>
+Temperature: (leave empty for models that do not support it)
+API Version: (leave empty; ignored for Responses v1)
+```
+
+The base URL ending in `/openai/v1` is also accepted. Select a deployment that
+supports Responses and structured JSON Schema output. The extension requests
+`name`, `categories`, and `keywords` as structured output. Each request uses
+`store: false` because classification needs no conversation history; this is
+not a guarantee of zero service-side retention.
+
+API-key mode sends only `api-key`, not Bearer authentication. Bearer remains
+available for other services or a manually supplied access token; the extension
+does not obtain or refresh Microsoft Entra tokens.
+
+### Upgrading existing installations
+
+Unset API Format and Authentication preserve the old Azure hostname detection
+and header choice. Explicit settings override that fallback independently.
+For Foundry, set both fields explicitly as above. Legacy Azure keeps its
+deployment URL and dated API version; Responses does not use that URL format.
+Install the complete package including `vendor/`, not just the PHP files.
+
 ### OpenAI
 
 ```
 Endpoint: https://api.openai.com/v1
+API Format: Chat Completions
+Authentication: Bearer
 API Key: sk-...
 Model: gpt-4o
 API Version: (leave empty)
@@ -85,17 +121,22 @@ API Version: (leave empty)
 
 ```
 Endpoint: https://<resource-name>.openai.azure.com
+API Format: Legacy Azure Chat Completions
+Authentication: API Key (api-key)
 API Key: <your-azure-api-key>
 Model: <your-deployment-name>
 API Version: 2024-02-15-preview
 ```
 
-The extension automatically detects Azure endpoints by checking for `openai.azure.com` or `cognitiveservices.azure.com` in the URL and adjusts authentication accordingly.
+Only unset settings retain automatic detection of `openai.azure.com` or
+`cognitiveservices.azure.com`; explicit choices do not depend on the hostname.
 
 ### Ollama (Local)
 
 ```
 Endpoint: http://localhost:11434/v1
+API Format: Chat Completions
+Authentication: None
 API Key: (leave empty)
 Model: llama3.2
 API Version: (leave empty)
@@ -232,4 +273,3 @@ Andreas Krause
 ## Version History
 
 See [changelog.md](changelog.md) for version history.
-

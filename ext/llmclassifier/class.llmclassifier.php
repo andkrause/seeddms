@@ -17,7 +17,7 @@
  * @license    GPL-2.0+
  * @package    SeedDMS
  * @subpackage Extensions
- * @version    1.0.0
+ * @version    1.1.0
  */
 
 /**
@@ -440,14 +440,20 @@ class SeedDMS_DocumentClassifier {
         $this->logger = $logger;
         $this->extSettings = $settings->_extensions['llmclassifier'] ?? [];
 
+        // A missing temperature keeps the default; an explicit blank omits it.
+        $temperature = $this->extSettings['llm_temperature'] ?? 0.3;
+        $temperature = is_string($temperature) && trim($temperature) === '' ? null : (float)$temperature;
+
         // Initialize LLM client
         $this->llmClient = new SeedDMS_LLMClient(
             $this->extSettings['llm_endpoint'] ?? '',
             $this->extSettings['llm_api_key'] ?? '',
             $this->extSettings['llm_model'] ?? 'gpt-4o',
-            (float)($this->extSettings['llm_temperature'] ?? 0.3),
+            $temperature,
             $this->extSettings['llm_api_version'] ?? null,
-            $logger
+            $logger,
+            $this->extSettings['llm_api_format'] ?? null,
+            $this->extSettings['llm_auth_method'] ?? null
         );
 
         // Initialize PDF extractor

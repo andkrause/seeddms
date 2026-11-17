@@ -9,7 +9,7 @@
  * @license    GPL-2.0+
  * @package    SeedDMS
  * @subpackage Extensions
- * @version    1.0.0
+ * @version    1.1.0
  */
 
 // =============================================================================
@@ -25,15 +25,25 @@ $__lang['de_DE'] = array(
     'llm_enabled' => 'LLM-Klassifizierung aktivieren',
     'llm_enabled_desc' => 'Aktiviert die automatische Dokumentenklassifizierung beim Upload',
     'llm_endpoint' => 'LLM API-Endpunkt',
-    'llm_endpoint_desc' => 'URL des API-Endpunkts (z.B. https://api.openai.com/v1 oder Azure-Endpunkt)',
+    'llm_endpoint_desc' => 'Responses: Basis-URL oder vollständige /responses-URL. Chat Completions: Basis-URL. Legacy Azure: Ressourcen-URL.',
+    'llm_api_format' => 'API-Format',
+    'llm_api_format_desc' => 'Format ausdrücklich auswählen. Leer = bisherige automatische Azure-Erkennung für bestehende Installationen.',
+    'llm_auth_method' => 'Authentifizierung',
+    'llm_auth_method_desc' => 'Foundry-Schlüssel: api-key. Leer = bisherige Header-Auswahl. Keine = ohne Authentifizierung.',
+    'llmclassifier_format_responses' => 'Responses',
+    'llmclassifier_format_chat_completions' => 'Chat Completions',
+    'llmclassifier_format_azure_chat_completions' => 'Legacy Azure Chat Completions',
+    'llmclassifier_auth_api_key' => 'API-Schlüssel (api-key)',
+    'llmclassifier_auth_bearer' => 'Bearer',
+    'llmclassifier_auth_none' => 'Keine',
     'llm_api_key' => 'API-Schlüssel',
     'llm_api_key_desc' => 'Authentifizierungsschlüssel für den LLM-Dienst',
     'llm_model' => 'Modell / Deployment-Name',
     'llm_model_desc' => 'Modellname (z.B. gpt-4o) oder Azure Deployment-Name',
     'llm_temperature' => 'Temperatur (0.0 - 2.0)',
-    'llm_temperature_desc' => 'Steuert die Kreativität des Modells (0.0 = deterministisch, 2.0 = sehr kreativ)',
-    'llm_api_version' => 'API-Version (nur Azure)',
-    'llm_api_version_desc' => 'API-Version für Azure OpenAI (z.B. 2024-02-15-preview)',
+    'llm_temperature_desc' => 'Leer = Parameter nicht senden (für manche Reasoning-Modelle erforderlich). Fehlende Einstellung: 0.3. Null ist ein gültiger Wert.',
+    'llm_api_version' => 'API-Version (nur Legacy Azure)',
+    'llm_api_version_desc' => 'Nur für Legacy Azure Chat Completions; Responses v1 benötigt keine datierte API-Version.',
 
     // Scope settings
     'limit_folder' => 'Erweiterung auf Ordner beschränken',
@@ -75,15 +85,25 @@ $__lang['en_GB'] = array(
     'llm_enabled' => 'Enable LLM Classification',
     'llm_enabled_desc' => 'Enable automatic document classification on upload',
     'llm_endpoint' => 'LLM API Endpoint',
-    'llm_endpoint_desc' => 'API endpoint URL (e.g., https://api.openai.com/v1 or Azure endpoint)',
+    'llm_endpoint_desc' => 'Responses: base URL or full /responses URL. Chat Completions: base URL. Legacy Azure: resource URL.',
+    'llm_api_format' => 'API Format',
+    'llm_api_format_desc' => 'Choose explicitly. Empty retains old automatic Azure detection for existing installations.',
+    'llm_auth_method' => 'Authentication',
+    'llm_auth_method_desc' => 'Foundry keys: api-key. Empty retains old header selection. None sends no authentication.',
+    'llmclassifier_format_responses' => 'Responses',
+    'llmclassifier_format_chat_completions' => 'Chat Completions',
+    'llmclassifier_format_azure_chat_completions' => 'Legacy Azure Chat Completions',
+    'llmclassifier_auth_api_key' => 'API Key (api-key)',
+    'llmclassifier_auth_bearer' => 'Bearer',
+    'llmclassifier_auth_none' => 'None',
     'llm_api_key' => 'API Key',
     'llm_api_key_desc' => 'Authentication key for the LLM service',
     'llm_model' => 'Model / Deployment Name',
     'llm_model_desc' => 'Model name (e.g., gpt-4o) or Azure deployment name',
     'llm_temperature' => 'Temperature (0.0 - 2.0)',
-    'llm_temperature_desc' => 'Controls model creativity (0.0 = deterministic, 2.0 = highly creative)',
-    'llm_api_version' => 'API Version (Azure only)',
-    'llm_api_version_desc' => 'API version for Azure OpenAI (e.g., 2024-02-15-preview)',
+    'llm_temperature_desc' => 'Empty omits the parameter (required by some reasoning models). Missing setting defaults to 0.3. Zero is a valid value.',
+    'llm_api_version' => 'API Version (legacy Azure only)',
+    'llm_api_version_desc' => 'Only for legacy Azure Chat Completions; Responses v1 needs no dated API version.',
 
     // Scope settings
     'limit_folder' => 'Limit Extension to Folder',

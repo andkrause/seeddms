@@ -5,6 +5,19 @@ All notable changes to the LLM Document Classifier extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-17
+
+### Added
+- Microsoft Foundry Responses v1 support with structured classification output and `store: false`.
+- Explicit, independent API format and authentication settings, including `api-key` without Bearer.
+- Blank temperature omits the parameter for models that do not support it.
+
+### Changed
+- Replaced custom cURL transport with locked `openai-php/client` and Guzzle dependencies.
+- Raised minimum PHP version to 8.2; deploy the extension with its packaged `vendor/` dependencies.
+- Preserved legacy provider behavior when new settings are unset.
+- API failures no longer log raw response text or exception messages that could expose secrets.
+
 ## [1.0.1] - 2026-01-06
 ### Added
 - **Temperature Setting**: Exposed the temperature option in configuration, allowing fine-grained control of LLM randomness/creativity and support for `mini` models

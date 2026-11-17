@@ -1,0 +1,63 @@
+<?php
+
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+
+final class ConfigurationTest extends TestCase {
+    public function testSelectableModesAndTranslatedOptions(): void {
+        require dirname(__DIR__) . '/conf.php';
+        require dirname(__DIR__) . '/lang.php';
+        $config = $EXT_CONF['llmclassifier']['config'];
+        $this->assertArrayHasKey('llm_api_format', $config);
+        $this->assertArrayHasKey('llm_auth_method', $config);
+        $this->assertSame(['responses', 'chat_completions', 'azure_chat_completions'], array_keys($config['llm_api_format']['options']));
+        $this->assertSame(['api-key', 'bearer', 'none'], array_keys($config['llm_auth_method']['options']));
+        foreach (['llm_api_format', 'llm_auth_method'] as $key) {
+            $this->assertSame('select', $config[$key]['type']);
+            $this->assertTrue($config[$key]['allow_empty']);
+            foreach (['de_DE', 'en_GB'] as $locale) {
+                $this->assertNotEmpty($__lang[$locale][$key]);
+                $this->assertNotEmpty($__lang[$locale][$key . '_desc']);
+                foreach ($config[$key]['options'] as $label) {
+                    $this->assertNotEmpty($__lang[$locale]['llmclassifier_' . $label]);
+                }
+            }
+        }
+        $this->assertSame('8.2.0-', $EXT_CONF['llmclassifier']['constraints']['depends']['php']);
+        $this->assertSame('1.1.0', $EXT_CONF['llmclassifier']['version']);
+    }
+
+    public static function settings(): array {
+        return [[[], true, 0.3], [['llm_temperature' => ''], false, null], [['llm_temperature' => '0'], true, 0.0]];
+    }
+
+    #[DataProvider('settings')]
+    public function testClassifierPassesExplicitSettingsAndTemperature($extra, $hasTemperature, $temperature): void {
+        $settings = (object)['_extensions' => ['llmclassifier' => $extra + [
+            'llm_endpoint' => 'https://resource.services.ai.azure.com/openai/v1/responses',
+            'llm_api_key' => 'test-key', 'llm_model' => 'deployment',
+            'llm_api_format' => 'responses', 'llm_auth_method' => 'api-key',
+            'pdftotext_path' => '/bin/true'
+        ]]];
+        $classifier = new SeedDMS_DocumentClassifier($settings, new stdClass(), null);
+        $property = new ReflectionProperty($classifier, 'llmClient');
+        $adapter = $property->getValue($classifier);
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([new Response(200, ['Content-Type' => 'application/json'], file_get_contents(__DIR__ . '/fixtures/responses-success.json'))]));
+        $stack->push(Middleware::history($history));
+        (new ReflectionProperty($adapter, 'httpClient'))->setValue($adapter, new Client(['handler' => $stack]));
+        $this->assertNotNull($adapter->chatCompletion('JSON', 'Document'));
+        $request = $history[0]['request'];
+        $this->assertSame('/openai/v1/responses', $request->getUri()->getPath());
+        $this->assertSame('test-key', $request->getHeaderLine('api-key'));
+        $this->assertFalse($request->hasHeader('Authorization'));
+        $body = json_decode((string)$request->getBody(), true);
+        $this->assertSame($hasTemperature, array_key_exists('temperature', $body));
+        if ($hasTemperature) { $this->assertEquals($temperature, $body['temperature']); }
+    }
+}
