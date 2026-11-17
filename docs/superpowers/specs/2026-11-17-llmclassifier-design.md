@@ -1,6 +1,6 @@
 # LLM Classifier — Foundry Responses and PHP SDK Design
 
-Status: Awaiting user approval.
+Status: Approved by the user on 2026-11-17.
 
 ## Intent
 
