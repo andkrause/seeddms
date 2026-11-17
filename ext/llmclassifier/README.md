@@ -146,6 +146,11 @@ results are rejected without applying metadata. Effort influences reasoning
 behavior, not an exact token allocation, latency, or cost. The separate HTTP
 timeout remains 120 seconds.
 
+Invalid explicit caps prevent an API request. SeedDMS normally discards the
+literal `0` when saving; the extension preserves it internally as `00` so it
+can still reject the invalid setting after reload. Positive leading-zero values
+are interpreted as decimal, not octal.
+
 See Microsoft's [reasoning model guidance](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning)
 for model-specific support and token accounting.
 

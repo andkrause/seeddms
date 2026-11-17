@@ -37,6 +37,26 @@ try {
         }
     }
     echo "SeedDMS save/reload temperature and reasoning checks passed (6 cases)\n";
+    $_POST = ['action' => 'saveSettings', 'extensions' => ['llmclassifier' => ['llm_max_output_tokens' => '0']]];
+    (new SeedDMS_ExtLLMClassifier())->init();
+    $settings->_extensions['llmclassifier']['llm_max_output_tokens'] = $_POST['extensions']['llmclassifier']['llm_max_output_tokens'];
+    $settings->save();
+    $reloaded = new Seeddms\Seeddms\Settings($file);
+    $classifier = new SeedDMS_DocumentClassifier($reloaded, new stdClass(), null);
+    $adapter = (new ReflectionProperty($classifier, 'llmClient'))->getValue($classifier);
+    $history = [];
+    $stack = GuzzleHttp\HandlerStack::create(new GuzzleHttp\Handler\MockHandler([
+        new GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], file_get_contents(__DIR__ . '/fixtures/responses-success.json'))
+    ]));
+    $stack->push(GuzzleHttp\Middleware::history($history));
+    (new ReflectionProperty($adapter, 'httpClient'))->setValue($adapter, new GuzzleHttp\Client(['handler' => $stack]));
+    if ($adapter->chatCompletion('JSON', 'Text') !== null || count($history) !== 0) {
+        throw new RuntimeException('Saved zero cap bypassed validation');
+    }
+    if (!isset($reloaded->_extensions['llmclassifier']['llm_max_output_tokens'])) {
+        throw new RuntimeException('Invalid zero cap was discarded instead of preserved for validation');
+    }
+    echo "SeedDMS saved-zero cap rejection passed\n";
 } finally {
     unlink($file);
 }

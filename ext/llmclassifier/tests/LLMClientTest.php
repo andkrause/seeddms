@@ -272,7 +272,7 @@ final class LLMClientTest extends TestCase {
     }
 
     public static function invalidReasoningControls(): array {
-        return [['bad', null], [null, 0], [null, -1], [null, 1.5], [null, '1e3'], [null, 'garbage'], [null, '999999999999999999999999999999'], [[], null], [null, []]];
+        return [['bad', null], [null, 0], [null, '0000'], [null, -1], [null, 1.5], [null, '1e3'], [null, 'garbage'], [null, '999999999999999999999999999999'], [[], null], [null, []]];
     }
 
     #[DataProvider('invalidReasoningControls')]
@@ -290,5 +290,14 @@ final class LLMClientTest extends TestCase {
         (new ReflectionProperty($client, 'httpClient'))->setValue($client, new Client(['handler' => $stack]));
         $this->assertNotNull($client->chatCompletion('JSON', 'Text'));
         $this->assertArrayNotHasKey('temperature', json_decode((string)$history[0]['request']->getBody(), true));
+    }
+
+    public static function decimalCaps(): array { return [['01200', 1200], ['0001', 1]]; }
+
+    #[DataProvider('decimalCaps')]
+    public function testTokenCapsUseDecimalLeadingZeros($cap, $expected): void {
+        $this->assertNotNull($this->client($this->success(), cap: $cap)->chatCompletion('JSON', 'Text'));
+        $body = json_decode((string)$this->history[0]['request']->getBody(), true);
+        $this->assertSame($expected, $body['max_output_tokens']);
     }
 }

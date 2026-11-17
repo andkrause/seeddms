@@ -36,6 +36,12 @@ class SeedDMS_ExtLLMClassifier extends SeedDMS_ExtBase {
      * @return void
      */
     public function init() {
+        // SeedDMS's saver drops "0". Preserve it as decimal "00" so the
+        // adapter can reject an invalid explicit cap after settings reload.
+        if (($_POST['action'] ?? $_GET['action'] ?? null) === 'saveSettings' &&
+            ($_POST['extensions']['llmclassifier']['llm_max_output_tokens'] ?? null) === '0') {
+            $_POST['extensions']['llmclassifier']['llm_max_output_tokens'] = '00';
+        }
         $GLOBALS['SEEDDMS_HOOKS']['controller']['addDocument'][] = 
             new SeedDMS_ExtLLMClassifier_AddDocument();
     }
@@ -147,6 +153,10 @@ class SeedDMS_LLMClient {
             $cap = $this->maxOutputTokens;
             if (is_string($cap)) {
                 $cap = trim($cap);
+                if (ctype_digit($cap)) {
+                    $cap = ltrim($cap, '0');
+                    $cap = $cap === '' ? '0' : $cap;
+                }
             }
             if ($cap !== null && $cap !== '') {
                 if ((!is_int($cap) && (!is_string($cap) || !ctype_digit($cap))) ||
