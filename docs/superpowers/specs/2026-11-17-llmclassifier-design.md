@@ -78,6 +78,45 @@ Verify with the actual SeedDMS settings save/reload implementation. Upgrade
 instructions must include Extension Manager Refresh to regenerate cached
 extension metadata. User explicitly approved this correction.
 
+### Approved reasoning controls and empty temperature (2026-11-17)
+
+The user accepted the proposed replacement for the persistence correction:
+empty **or absent** temperature now omits the parameter in every API mode.
+Explicit numeric values remain supported; `0.0` persists zero through SeedDMS.
+Retain `omit` as a compatibility alias. Existing installations relying on the
+implicit 0.3 must set 0.3 explicitly. This intentionally supersedes the earlier
+absent-setting fallback. Direct client construction also defaults to omission.
+
+Approaches: selected uniform empty/missing omission rather than a Responses-only
+exception; selected independent optional effort/token-cap settings rather than
+service-default-only documentation. No model-name autodetection or retry with
+altered parameters.
+
+Add `llm_reasoning_effort` (empty = service default) with selectable `none`,
+`minimal`, `low`, `medium`, `high`, `xhigh`, `max`. These are a union of documented
+values, not a claim of universal support. Add `llm_max_output_tokens` (empty =
+service default), a positive integer cap. Invalid nonempty settings fail locally
+without sending a request. Both fields are optional; no numeric defaults.
+
+Map Responses to nested `reasoning.effort` and `max_output_tokens`; both Chat
+formats use `reasoning_effort` and `max_completion_tokens`. Never send null,
+both token-cap names, or `max_tokens`. Model/API-version support is the user's
+responsibility; document that older compatible Chat endpoints may reject these
+optional fields. Explicit effort `none` is different from an unset field.
+
+Document that effort is not an exact token/time/cost allocation and the cap
+includes reasoning and visible output. Too-small caps may produce incomplete
+responses, which must not update metadata. The 120-second timeout is independent.
+Luna's effort support is unverified: recommend leaving effort empty initially.
+
+Verification: request capture for all three API modes, unset/empty/default
+omission, all configured effort values, invalid effort/caps, numeric zero,
+and actual SeedDMS save/reload. Update README and German/English settings text,
+changelog, version to 1.1.1, and packaged artifact. No live-resource changes.
+
+Evidence: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning
+and https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/responses.
+
 ## Request and result handling
 
 - Responses: send the deployment as `model` and the existing system/user
