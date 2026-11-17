@@ -10,7 +10,7 @@
  * @license    GPL-2.0+
  * @package    SeedDMS
  * @subpackage Extensions
- * @version    1.0.0
+ * @version    1.1.1
  */
 
 $EXT_CONF['llmclassifier'] = array(
@@ -22,8 +22,8 @@ $EXT_CONF['llmclassifier'] = array(
     'title' => 'LLM Document Classifier',
     'description' => 'Automatically classifies PDF documents using AI. Analyzes document content to suggest names, assign categories, and add keywords.',
     'disable' => false,
-    'version' => '1.0.0',
-    'releasedate' => '2026-01-04',
+    'version' => '1.1.1',
+    'releasedate' => '2026-11-17',
     'author' => array(
         'name' => 'Andreas Krause',
         'email' => '',
@@ -49,7 +49,29 @@ $EXT_CONF['llmclassifier'] = array(
             'title' => 'LLM API Endpoint',
             'type' => 'input',
             'size' => 250,
-            'placeholder' => 'https://api.openai.com/v1 or https://<resource>.openai.azure.com',
+            'placeholder' => 'https://<resource>.services.ai.azure.com/openai/v1/responses',
+        ),
+
+        'llm_api_format' => array(
+            'title' => 'API Format (empty = legacy compatibility)',
+            'type' => 'select',
+            'allow_empty' => true,
+            'options' => array(
+                'responses' => 'format_responses',
+                'chat_completions' => 'format_chat_completions',
+                'azure_chat_completions' => 'format_azure_chat_completions',
+            ),
+        ),
+
+        'llm_auth_method' => array(
+            'title' => 'Authentication (empty = legacy compatibility)',
+            'type' => 'select',
+            'allow_empty' => true,
+            'options' => array(
+                'api-key' => 'auth_api_key',
+                'bearer' => 'auth_bearer',
+                'none' => 'auth_none',
+            ),
         ),
 
         'llm_api_key' => array(
@@ -69,11 +91,29 @@ $EXT_CONF['llmclassifier'] = array(
             'title' => 'Temperature (0.0 - 2.0)',
             'type' => 'input',
             'size' => 10,
-            'placeholder' => '0.3',
+            'placeholder' => 'Empty = model default',
+        ),
+
+        'llm_reasoning_effort' => array(
+            'title' => 'Reasoning Effort (empty = model default)',
+            'type' => 'select',
+            'allow_empty' => true,
+            'options' => array(
+                'none' => 'effort_none', 'minimal' => 'effort_minimal',
+                'low' => 'effort_low', 'medium' => 'effort_medium',
+                'high' => 'effort_high', 'xhigh' => 'effort_xhigh', 'max' => 'effort_max',
+            ),
+        ),
+
+        'llm_max_output_tokens' => array(
+            'title' => 'Maximum Output Tokens (empty = model default)',
+            'type' => 'input',
+            'size' => 20,
+            'placeholder' => 'Empty = no explicit cap',
         ),
 
         'llm_api_version' => array(
-            'title' => 'API Version (Azure only)',
+            'title' => 'API Version (legacy Azure only)',
             'type' => 'input',
             'size' => 100,
             'placeholder' => '2024-02-15-preview',
@@ -145,7 +185,7 @@ $EXT_CONF['llmclassifier'] = array(
 
     'constraints' => array(
         'depends' => array(
-            'php' => '8.0.0-',
+            'php' => '8.2.0-',
             'seeddms' => '6.0.0-'
         ),
     ),

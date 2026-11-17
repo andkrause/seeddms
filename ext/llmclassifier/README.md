@@ -11,18 +11,24 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
 - **Folder Scoping**: Limit classification to specific folder trees
 - **Default Category**: Automatically assign a category to all classified documents
 - **Keyword Restriction**: Optionally limit keywords to pre-configured lists
-- **Multi-Provider Support**: Works with OpenAI, Azure OpenAI, Ollama, and other compatible APIs
+- **Multi-Provider Support**: Microsoft Foundry Responses, OpenAI, legacy Azure OpenAI, Ollama, and compatible APIs via `openai-php/client`
 
 ## Requirements
 
 - SeedDMS 6.0.0 or higher
-- PHP 8.0 or higher
+- PHP 8.2 or higher
+- Packaged SDK dependencies (`vendor/` included; see installation below)
 - `pdftotext` utility (part of poppler-utils)
 - Access to an OpenAI-compatible LLM API
 
 ## Installation
 
-1. Copy the `llmclassifier` folder to your SeedDMS extensions directory:
+1. Build a copy-ready package with Docker (Composer runs only in the build container):
+   ```sh
+   bash build-scripts/package-llmclassifier.sh
+   ```
+   Extract `dist/llmclassifier-1.1.1.tar.gz` and copy the complete `llmclassifier`
+   folder, including `vendor/`, to your SeedDMS extensions directory:
    ```
    /var/seeddms/seeddms60x/www/ext/llmclassifier/
    ```
@@ -33,6 +39,17 @@ Automatically classify PDF documents using Large Language Models (LLMs). This ex
    - Click the enable button
 
 3. Configure the extension (see Configuration section below)
+
+When upgrading by copying files or rebuilding the image, use **Admin → Extension
+Manager → Refresh** before configuring. SeedDMS caches extension metadata in its
+data directory; replacing `conf.php` alone does not refresh the visible fields.
+
+The repository's Dockerfile bundles locked production dependencies automatically.
+Source checkouts are not copy-ready until dependencies are installed. For local
+development, run `composer install` in `ext/llmclassifier`, then `composer test`.
+The SDK is community-maintained; dependencies are extension-local, but PHP class
+names are shared with SeedDMS. If other extensions load incompatible versions of
+Guzzle or PSR packages, verify the combined installation before deployment.
 
 ## Configuration
 
@@ -46,7 +63,12 @@ Access extension settings via **Admin → Extension Manager → LLM Document Cla
 | **LLM API Endpoint** | URL of the LLM API (see provider examples below) |
 | **API Key** | Your API key for authentication |
 | **Model / Deployment Name** | Model to use (e.g., `gpt-4o`) or Azure deployment name |
-| **API Version (Azure only)** | Required for Azure OpenAI (e.g., `2024-02-15-preview`) |
+| **API Format** | Responses, Chat Completions, or Legacy Azure Chat Completions; empty retains old detection |
+| **Authentication** | `api-key`, Bearer, or None; independent of API format |
+| **Temperature** | Empty/missing omits the parameter; use `0.0` for zero or e.g. `0.3` for explicit temperature |
+| **Reasoning Effort** | Optional, model-dependent effort level; empty leaves the service default |
+| **Maximum Output Tokens** | Optional positive integer ceiling on reasoning plus visible output tokens; empty sends no explicit cap |
+| **API Version (legacy Azure only)** | Used only for the legacy deployment-based API |
 
 ### Scope Settings
 
@@ -72,10 +94,91 @@ Access extension settings via **Admin → Extension Manager → LLM Document Cla
 
 ## LLM Provider Configuration
 
+### Microsoft Foundry (Responses v1)
+
+```
+Endpoint: https://<resource>.services.ai.azure.com/openai/v1/responses
+API Format: Responses
+Authentication: API Key (api-key)
+API Key: <your-foundry-api-key>
+Model: <your-deployment-name>
+Temperature: (leave empty)
+Reasoning Effort: (leave empty initially for Luna)
+Maximum Output Tokens: (leave empty unless you want an explicit ceiling)
+API Version: (leave empty; ignored for Responses v1)
+```
+
+The base URL ending in `/openai/v1` is also accepted. Select a deployment that
+supports Responses and structured JSON Schema output. The extension requests
+`name`, `categories`, and `keywords` as structured output. Each request uses
+`store: false` because classification needs no conversation history; this is
+not a guarantee of zero service-side retention.
+
+Leave temperature empty for models that reject it. Both empty and missing
+temperature omit the parameter in every API mode. The older `omit` value remains
+accepted but is no longer needed. SeedDMS drops the string `0` during saving;
+use `0.0` for persistent explicit zero.
+
+### Reasoning effort and token ceilings
+
+The two controls are independent and optional. Empty values send neither a
+guessed default nor `null`; the service/model chooses its defaults.
+
+| API Format | Effort request field | Output ceiling request field |
+|------------|----------------------|------------------------------|
+| Responses | `reasoning.effort` | `max_output_tokens` |
+| Chat Completions | `reasoning_effort` | `max_completion_tokens` |
+| Legacy Azure Chat Completions | `reasoning_effort` | `max_completion_tokens` |
+
+Effort choices are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`.
+This is a union of documented values: **not every model supports every value or
+the effort parameter itself**. Explicit `none` is not the same as leaving the
+setting empty. Configurable effort support for `gpt-6-luna` is unverified; leave
+it empty initially. For older Azure API versions and other compatible providers,
+confirm support before setting either control. Unsupported parameters are not
+silently removed or retried with different settings.
+
+The token ceiling must be a positive integer and includes hidden reasoning,
+visible answer text, and generated formatting tokens. It is not a separate
+thinking-token budget or a guaranteed spending cap. Too-small ceilings can
+exhaust output capacity before valid classification JSON is complete; incomplete
+results are rejected without applying metadata. Effort influences reasoning
+behavior, not an exact token allocation, latency, or cost. The separate HTTP
+timeout remains 120 seconds.
+
+Invalid explicit caps prevent an API request. SeedDMS normally discards the
+literal `0` when saving; the extension preserves it internally as `00` so it
+can still reject the invalid setting after reload. Positive leading-zero values
+are interpreted as decimal, not octal.
+
+See Microsoft's [reasoning model guidance](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning)
+for model-specific support and token accounting.
+
+API-key mode sends only `api-key`, not Bearer authentication. Bearer remains
+available for other services or a manually supplied access token; the extension
+does not obtain or refresh Microsoft Entra tokens.
+
+### Upgrading existing installations
+
+Unset API Format and Authentication preserve the old Azure hostname detection
+and header choice. Explicit settings override that fallback independently.
+For Foundry, set both fields explicitly as above. Legacy Azure keeps its
+deployment URL and dated API version; Responses does not use that URL format.
+Install the complete package including `vendor/`, not just the PHP files.
+As of **1.1.1**, missing temperature no longer sends the implicit `0.3` used by
+earlier versions. Enter `0.3` explicitly if you want that behavior. After deploying,
+refresh extension metadata, reopen settings, and save your desired controls.
+Malformed or incomplete classification objects are rejected before metadata is
+changed. Chat Completions providers must return `finish_reason: stop`; filtered,
+truncated, tool-call, or missing finish reasons are not applied. Legacy
+comma-separated keyword strings remain supported in Chat Completions mode.
+
 ### OpenAI
 
 ```
 Endpoint: https://api.openai.com/v1
+API Format: Chat Completions
+Authentication: Bearer
 API Key: sk-...
 Model: gpt-4o
 API Version: (leave empty)
@@ -85,17 +188,22 @@ API Version: (leave empty)
 
 ```
 Endpoint: https://<resource-name>.openai.azure.com
+API Format: Legacy Azure Chat Completions
+Authentication: API Key (api-key)
 API Key: <your-azure-api-key>
 Model: <your-deployment-name>
 API Version: 2024-02-15-preview
 ```
 
-The extension automatically detects Azure endpoints by checking for `openai.azure.com` or `cognitiveservices.azure.com` in the URL and adjusts authentication accordingly.
+Only unset settings retain automatic detection of `openai.azure.com` or
+`cognitiveservices.azure.com`; explicit choices do not depend on the hostname.
 
 ### Ollama (Local)
 
 ```
 Endpoint: http://localhost:11434/v1
+API Format: Chat Completions
+Authentication: None
 API Key: (leave empty)
 Model: llama3.2
 API Version: (leave empty)
@@ -232,4 +340,3 @@ Andreas Krause
 ## Version History
 
 See [changelog.md](changelog.md) for version history.
-

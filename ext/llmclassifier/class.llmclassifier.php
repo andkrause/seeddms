@@ -17,7 +17,7 @@
  * @license    GPL-2.0+
  * @package    SeedDMS
  * @subpackage Extensions
- * @version    1.0.0
+ * @version    1.1.1
  */
 
 /**
@@ -36,6 +36,12 @@ class SeedDMS_ExtLLMClassifier extends SeedDMS_ExtBase {
      * @return void
      */
     public function init() {
+        // SeedDMS's saver drops "0". Preserve it as decimal "00" so the
+        // adapter can reject an invalid explicit cap after settings reload.
+        if (($_POST['action'] ?? $_GET['action'] ?? null) === 'saveSettings' &&
+            ($_POST['extensions']['llmclassifier']['llm_max_output_tokens'] ?? null) === '0') {
+            $_POST['extensions']['llmclassifier']['llm_max_output_tokens'] = '00';
+        }
         $GLOBALS['SEEDDMS_HOOKS']['controller']['addDocument'][] = 
             new SeedDMS_ExtLLMClassifier_AddDocument();
     }
@@ -54,10 +60,8 @@ class SeedDMS_ExtLLMClassifier extends SeedDMS_ExtBase {
  * LLM API Client
  *
  * Handles communication with OpenAI-compatible chat completion APIs.
- * Supports both standard OpenAI API and Azure OpenAI deployments.
- *
- * Azure endpoints are detected automatically by checking for
- * 'openai.azure.com' or 'cognitiveservices.azure.com' in the URL.
+ * Uses explicit API format and authentication settings. Old installations
+ * retain Azure hostname detection only when the new settings are unset.
  */
 class SeedDMS_LLMClient {
 
@@ -79,6 +83,12 @@ class SeedDMS_LLMClient {
     /** @var bool Whether this is an Azure OpenAI endpoint */
     private $isAzure;
 
+    private $apiFormat;
+    private $authMethod;
+    private $httpClient;
+    private $reasoningEffort;
+    private $maxOutputTokens;
+
     /** @var float Temperature for random sampling (0.0 - 2.0) */
     private $temperature;
 
@@ -92,7 +102,7 @@ class SeedDMS_LLMClient {
      * @param string|null $apiVersion  API version (Azure only)
      * @param object|null $logger      Logger instance for error logging
      */
-    public function __construct($endpoint, $apiKey, $model, $temperature = 0.3, $apiVersion = null, $logger = null) {
+    public function __construct($endpoint, $apiKey, $model, $temperature = null, $apiVersion = null, $logger = null, $apiFormat = null, $authMethod = null, $httpClient = null, $reasoningEffort = null, $maxOutputTokens = null) {
         $this->endpoint = rtrim($endpoint, '/');
         $this->apiKey = $apiKey;
         $this->model = $model;
@@ -105,6 +115,11 @@ class SeedDMS_LLMClient {
             strpos($this->endpoint, 'openai.azure.com') !== false ||
             strpos($this->endpoint, 'cognitiveservices.azure.com') !== false
         );
+        $this->apiFormat = $apiFormat ?: ($this->isAzure ? 'azure_chat_completions' : 'chat_completions');
+        $this->authMethod = $authMethod ?: ($this->isAzure ? 'api-key' : 'bearer');
+        $this->httpClient = $httpClient;
+        $this->reasoningEffort = $reasoningEffort;
+        $this->maxOutputTokens = $maxOutputTokens;
     }
 
     /**
@@ -116,97 +131,179 @@ class SeedDMS_LLMClient {
      * @return array|null Parsed JSON response or null on error
      */
     public function chatCompletion($systemPrompt, $userMessage) {
-        // Build URL based on provider type
-        if ($this->isAzure) {
-            $apiVersion = $this->apiVersion ?: '2024-02-15-preview';
-            $url = sprintf(
-                '%s/openai/deployments/%s/chat/completions?api-version=%s',
-                $this->endpoint,
-                urlencode($this->model),
-                urlencode($apiVersion)
-            );
-        } else {
-            $url = $this->endpoint . '/chat/completions';
-        }
+        try {
+            if (trim($this->endpoint) === '') {
+                $this->logError('LLM endpoint is required; no request was sent.');
+                return null;
+            }
+            if (!in_array($this->apiFormat, ['responses', 'chat_completions', 'azure_chat_completions'], true)) {
+                throw new \InvalidArgumentException('Invalid API format setting');
+            }
+            if (!in_array($this->authMethod, ['api-key', 'bearer', 'none'], true)) {
+                throw new \InvalidArgumentException('Invalid authentication setting');
+            }
+            $effort = $this->reasoningEffort;
+            if (is_string($effort)) {
+                $effort = trim($effort);
+            }
+            if ($effort !== null && $effort !== '' && !in_array($effort, ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], true)) {
+                $this->logError('Invalid reasoning effort setting; choose a supported effort or leave empty.');
+                return null;
+            }
+            $cap = $this->maxOutputTokens;
+            if (is_string($cap)) {
+                $cap = trim($cap);
+                if (ctype_digit($cap)) {
+                    $cap = ltrim($cap, '0');
+                    $cap = $cap === '' ? '0' : $cap;
+                }
+            }
+            if ($cap !== null && $cap !== '') {
+                if ((!is_int($cap) && (!is_string($cap) || !ctype_digit($cap))) ||
+                    ($cap = filter_var($cap, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])) === false) {
+                    $this->logError('Invalid maximum output tokens setting; enter a positive integer or leave empty.');
+                    return null;
+                }
+            }
 
-        // Build request payload
-        $payload = [
-            'messages' => [
+            $autoload = __DIR__ . '/vendor/autoload.php';
+            if (!is_file($autoload)) {
+                $this->logError('SDK dependencies missing; install the packaged extension with vendor/ included.');
+                return null;
+            }
+            require_once $autoload;
+
+            $endpoint = $this->endpoint;
+            if ($this->apiFormat === 'responses') {
+                $endpoint = preg_replace('~/responses$~', '', $endpoint);
+            } elseif ($this->apiFormat === 'azure_chat_completions') {
+                $endpoint .= '/openai/deployments/' . urlencode($this->model);
+            }
+            $factory = \OpenAI::factory()
+                ->withBaseUri($endpoint)
+                ->withHttpClient($this->getHttpClient());
+            if ($this->apiFormat === 'azure_chat_completions') {
+                $factory->withQueryParam('api-version', $this->apiVersion ?: '2024-02-15-preview');
+            }
+            if (!empty($this->apiKey)) {
+                if ($this->authMethod === 'api-key') {
+                    $factory->withHttpHeader('api-key', $this->apiKey);
+                } elseif ($this->authMethod === 'bearer') {
+                    $factory->withApiKey($this->apiKey);
+                }
+            }
+            $client = $factory->make();
+            $messages = [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $userMessage]
-            ],
-            'temperature' => $this->temperature,
-            'response_format' => ['type' => 'json_object']
-        ];
-
-        // Azure uses deployment name in URL, not in payload
-        if (!$this->isAzure) {
-            $payload['model'] = $this->model;
-        }
-
-        // Build headers with appropriate authentication
-        $headers = ['Content-Type: application/json'];
-        if (!empty($this->apiKey)) {
-            if ($this->isAzure) {
-                $headers[] = 'api-key: ' . $this->apiKey;
-            } else {
-                $headers[] = 'Authorization: Bearer ' . $this->apiKey;
+            ];
+            $payload = [];
+            if ($effort !== null && $effort !== '') {
+                if ($this->apiFormat === 'responses') {
+                    $payload['reasoning'] = ['effort' => $effort];
+                } else {
+                    $payload['reasoning_effort'] = $effort;
+                }
             }
-        }
-
-        // Execute request
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 120
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        $curlErrno = curl_errno($ch);
-        curl_close($ch);
-
-        // Handle curl errors
-        if ($curlErrno !== 0) {
-            $this->logError("API connection failed: [$curlErrno] $curlError");
+            if ($cap !== null && $cap !== '') {
+                $payload[$this->apiFormat === 'responses' ? 'max_output_tokens' : 'max_completion_tokens'] = $cap;
+            }
+            if ($this->temperature !== null) {
+                $payload['temperature'] = $this->temperature;
+            }
+            if ($this->apiFormat === 'responses') {
+                $payload += [
+                    'model' => $this->model,
+                    'input' => $messages,
+                    'store' => false,
+                    'text' => ['format' => [
+                        'type' => 'json_schema', 'name' => 'classification', 'strict' => true,
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'name' => ['type' => 'string'],
+                                'categories' => ['type' => 'array', 'items' => ['type' => 'string']],
+                                'keywords' => ['type' => 'array', 'items' => ['type' => 'string']]
+                            ],
+                            'required' => ['name', 'categories', 'keywords'],
+                            'additionalProperties' => false
+                        ]
+                    ]]
+                ];
+                $response = $client->responses()->create($payload);
+                if ($response->status !== 'completed' || $response->error !== null) {
+                    $this->logError('Responses request was not completed; check deployment limits and content filters.');
+                    return null;
+                }
+                foreach ($response->output as $item) {
+                    if ($item instanceof \OpenAI\Responses\Responses\Output\OutputMessage) {
+                        if ($item->status !== 'completed') {
+                            $this->logError('Responses message was incomplete.');
+                            return null;
+                        }
+                        foreach ($item->content as $part) {
+                            if ($part instanceof \OpenAI\Responses\Responses\Output\OutputMessageContentRefusal) {
+                                $this->logError('Model refused classification; check content filters.');
+                                return null;
+                            }
+                        }
+                    }
+                }
+                $content = $response->outputText;
+            } else {
+                $payload += ['messages' => $messages, 'response_format' => ['type' => 'json_object']];
+                if ($this->apiFormat !== 'azure_chat_completions') {
+                    $payload['model'] = $this->model;
+                }
+                $response = $client->chat()->create($payload);
+                if (($response->choices[0]->finishReason ?? null) !== 'stop') {
+                    $this->logError('Chat completion was not finished normally; check content filters and token limits.');
+                    return null;
+                }
+                $content = $response->choices[0]->message->content ?? null;
+            }
+            if (!is_string($content) || trim($content) === '') {
+                $this->logError('API response contained no classification text.');
+                return null;
+            }
+            $result = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
+            if (!$result instanceof \stdClass || !isset($result->name, $result->categories, $result->keywords) || !is_string($result->name)) {
+                $this->logError('LLM classification must contain a string name and category/keyword lists.');
+                return null;
+            }
+            foreach (['categories', 'keywords'] as $field) {
+                if ($field === 'keywords' && $this->apiFormat !== 'responses' && is_string($result->$field)) {
+                    // Existing Chat Completions installations accept comma-separated keywords.
+                    continue;
+                }
+                if (!is_array($result->$field) || !array_is_list($result->$field)) {
+                    $this->logError('LLM classification categories and keywords must be string lists.');
+                    return null;
+                }
+                foreach ($result->$field as $value) {
+                    if (!is_string($value)) {
+                        $this->logError('LLM classification categories and keywords must contain only strings.');
+                        return null;
+                    }
+                }
+            }
+            return ['name' => $result->name, 'categories' => $result->categories, 'keywords' => $result->keywords];
+        } catch (\Throwable $error) {
+            // Exception messages may contain API keys or echoed document text.
+            if ($error instanceof \InvalidArgumentException) {
+                $this->logError('Invalid API format or authentication configuration.');
+            } elseif ($error instanceof \JsonException) {
+                $this->logError('Failed to parse LLM classification JSON.');
+            } else {
+                $code = method_exists($error, 'getStatusCode') ? $error->getStatusCode() : null;
+                $this->logError('LLM API request failed (' . get_class($error) . ($code ? ", HTTP $code" : '') . '); check endpoint, credentials, model support and connectivity.');
+            }
             return null;
         }
+    }
 
-        // Handle HTTP errors
-        if ($httpCode !== 200) {
-            $this->logError("API returned HTTP $httpCode");
-            $this->logError("URL: $url");
-            $this->logError("Response: $response");
-            return null;
-        }
-
-        // Parse response
-        $data = json_decode($response, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->logError("Failed to parse API response: " . json_last_error_msg());
-            return null;
-        }
-
-        // Extract content from response
-        if (!isset($data['choices'][0]['message']['content'])) {
-            $this->logError("Invalid API response structure");
-            return null;
-        }
-
-        $content = $data['choices'][0]['message']['content'];
-        $result = json_decode($content, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->logError("Failed to parse LLM JSON output: " . json_last_error_msg());
-            $this->logError("Raw content: $content");
-            return null;
-        }
-
-        return $result;
+    private function getHttpClient() {
+        return $this->httpClient ?: new \GuzzleHttp\Client(['timeout' => 120]);
     }
 
     /**
@@ -410,14 +507,23 @@ class SeedDMS_DocumentClassifier {
         $this->logger = $logger;
         $this->extSettings = $settings->_extensions['llmclassifier'] ?? [];
 
+        // SeedDMS drops blank settings on save; "omit" persists explicit omission.
+        $temperature = $this->extSettings['llm_temperature'] ?? null;
+        $temperature = $temperature === null || (is_string($temperature) && in_array(strtolower(trim($temperature)), ['', 'omit'], true)) ? null : (float)$temperature;
+
         // Initialize LLM client
         $this->llmClient = new SeedDMS_LLMClient(
             $this->extSettings['llm_endpoint'] ?? '',
             $this->extSettings['llm_api_key'] ?? '',
             $this->extSettings['llm_model'] ?? 'gpt-4o',
-            (float)($this->extSettings['llm_temperature'] ?? 0.3),
+            $temperature,
             $this->extSettings['llm_api_version'] ?? null,
-            $logger
+            $logger,
+            $this->extSettings['llm_api_format'] ?? null,
+            $this->extSettings['llm_auth_method'] ?? null,
+            null,
+            $this->extSettings['llm_reasoning_effort'] ?? null,
+            $this->extSettings['llm_max_output_tokens'] ?? null
         );
 
         // Initialize PDF extractor
@@ -1126,4 +1232,3 @@ class SeedDMS_ExtLLMClassifier_AddDocument {
         return null;
     }
 }
-

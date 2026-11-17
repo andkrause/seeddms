@@ -1,0 +1,8 @@
+{
+  "id": "resp_test", "object": "response", "created_at": 1730000000,
+  "status": "completed", "error": null, "model": "deployment",
+  "parallel_tool_calls": false, "tool_choice": "auto", "tools": [],
+  "output": [{"id": "msg_test", "type": "message", "role": "assistant", "status": "completed", "content": [
+    {"type": "refusal", "refusal": "Cannot classify this document."}
+  ]}]
+}

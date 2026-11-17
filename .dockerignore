@@ -1,0 +1,6 @@
+.git
+.superpowers
+dist
+ext/llmclassifier/vendor
+ext/llmclassifier/tests
+ext/llmclassifier/.phpunit.cache

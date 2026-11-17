@@ -1,3 +1,9 @@
+# Build locked production SDK dependencies without Composer in the final image.
+FROM composer:2 AS llmclassifier-dependencies
+WORKDIR /app
+COPY ext/llmclassifier/composer.json ext/llmclassifier/composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
 # Stage 1: Download and extract SeedDMS
 FROM andy008/php4seeddms:8.5.12-apache-trixie AS downloader
 
@@ -68,6 +74,7 @@ COPY --from=downloader /tmp/seeddms/seeddms60x /var/seeddms/seeddms60x
 
 # Copy LLM Classifier extension
 COPY ext/llmclassifier /var/seeddms/seeddms60x/www/ext/llmclassifier
+COPY --from=llmclassifier-dependencies /app/vendor /var/seeddms/seeddms60x/www/ext/llmclassifier/vendor
 
 # Set proper ownership and permissions
 RUN chown -R www-data:www-data /var/seeddms/seeddms60x \
