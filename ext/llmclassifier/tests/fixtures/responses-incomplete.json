@@ -1,0 +1,8 @@
+{
+  "id": "resp_test", "object": "response", "created_at": 1730000000,
+  "status": "incomplete", "error": null, "incomplete_details": {"reason": "max_output_tokens"},
+  "model": "deployment", "parallel_tool_calls": false, "tool_choice": "auto", "tools": [],
+  "output": [{"id": "msg_test", "type": "message", "role": "assistant", "status": "incomplete", "content": [
+    {"type": "output_text", "text": "{\"name\":\"Invoice\",\"categories\":[\"Invoices\"],\"keywords\":[\"Steuer\"]}", "annotations": []}
+  ]}]
+}
