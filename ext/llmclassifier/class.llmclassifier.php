@@ -236,18 +236,18 @@ class SeedDMS_LLMClient {
                         'status' => $response->status,
                         'reason' => $response->incompleteDetails?->reason,
                         'code' => $response->error?->code
-                    ]) . '; check deployment limits and content filters.');
+                    ] + $this->correlationFields($response)) . '; check deployment limits and content filters.');
                     return null;
                 }
                 foreach ($response->output as $item) {
                     if ($item instanceof \OpenAI\Responses\Responses\Output\OutputMessage) {
                         if ($item->status !== 'completed') {
-                            $this->logError('Responses message was incomplete' . $this->diagnosticFields(['status' => $item->status]) . '.');
+                            $this->logError('Responses message was incomplete' . $this->diagnosticFields(['status' => $item->status] + $this->correlationFields($response)) . '.');
                             return null;
                         }
                         foreach ($item->content as $part) {
                             if ($part instanceof \OpenAI\Responses\Responses\Output\OutputMessageContentRefusal) {
-                                $this->logError('Model refused classification; check content filters.');
+                                $this->logError('Model refused classification' . $this->diagnosticFields($this->correlationFields($response)) . '; check content filters.');
                                 return null;
                             }
                         }
@@ -261,7 +261,7 @@ class SeedDMS_LLMClient {
                 }
                 $response = $client->chat()->create($payload);
                 if (($response->choices[0]->finishReason ?? null) !== 'stop') {
-                    $this->logError('Chat completion was not finished normally' . $this->diagnosticFields(['finish_reason' => $response->choices[0]->finishReason ?? null]) . '; check content filters and token limits.');
+                    $this->logError('Chat completion was not finished normally' . $this->diagnosticFields(['finish_reason' => $response->choices[0]->finishReason ?? null] + $this->correlationFields($response)) . '; check content filters and token limits.');
                     return null;
                 }
                 $content = $response->choices[0]->message->content ?? null;
@@ -329,6 +329,15 @@ class SeedDMS_LLMClient {
             }
         }
         return $details ? ' (' . implode(', ', $details) . ')' : '';
+    }
+
+    private function correlationFields($response): array {
+        $meta = $response->meta();
+        return [
+            'x-request-id' => $meta->requestId,
+            'apim-request-id' => $meta->custom->headers['apim-request-id'] ?? null,
+            'x-ms-request-id' => $meta->custom->headers['x-ms-request-id'] ?? null
+        ];
     }
 
     private function describeFailure(\Throwable $error): string {

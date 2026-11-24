@@ -15,6 +15,7 @@
 - Task 1: baseline 102 tests/548 assertions; new diagnostics reproduced 13 failures before implementation; then 123 tests/655 assertions passed (PHP 8.5.12).
 - Task 2: 125 tests/707 assertions passed. Actual SeedDMS settings save/reload passed in an isolated container, including success → timeout → success with unchanged settings and fresh requests after saved changes. No config-cache defect reproduced; production intermittency remains unverified.
 - Task 3: PHP 8.2.35 and 8.5.12 each passed 125 tests/707 assertions; changed PHP syntax checks and `git diff --check` passed. Production archive built with the existing script invoked via bash (not executable in the checkout); package smoke passed with SeedDMS's host autoloader loaded first. Release numbering remains unchanged, with an unreleased changelog entry.
+- Independent review found missing correlation IDs on unsuccessful HTTP-200 typed results. Five regression cases failed before correction, then the full suite passed 130 tests/732 assertions on PHP 8.2.35 and 8.5.12. Isolated persistence and syntax checks passed again. No critical findings; stronger authenticated persistence coverage is deferred (request-header unit coverage exists).
 
 ## Global Constraints
 

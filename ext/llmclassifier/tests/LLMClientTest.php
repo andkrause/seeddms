@@ -410,6 +410,31 @@ final class LLMClientTest extends TestCase {
         }
     }
 
+    public static function typedFailures(): array {
+        return [['responses', 'failed'], ['responses', 'incomplete'], ['responses', 'message-incomplete'], ['responses', 'refusal'], ['chat_completions', 'length']];
+    }
+
+    #[DataProvider('typedFailures')]
+    public function testTypedFailuresRetainSafeCorrelationIds($format, $kind): void {
+        $data = json_decode($this->fixture($format === 'responses' ? 'responses-success' : 'chat-success'), true);
+        if ($kind === 'length') {
+            $data['choices'][0]['finish_reason'] = 'length';
+        } elseif ($kind === 'message-incomplete') {
+            $data['output'][1]['status'] = 'incomplete';
+        } elseif ($kind === 'refusal') {
+            $data['output'][1]['content'] = [['type' => 'refusal', 'refusal' => 'private document']];
+        } else {
+            $data['status'] = $kind;
+        }
+        $reply = new Response(200, ['Content-Type' => 'application/json', 'X-Request-ID' => 'req-failed-123', 'APIM-Request-ID' => 'azure-failed-456', 'x-ms-request-id' => 'prefix-test-key-suffix'], json_encode($data));
+        $this->assertNull($this->client($reply, format: $format)->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('x-request-id=req-failed-123', $log);
+        $this->assertStringContainsString('apim-request-id=azure-failed-456', $log);
+        $this->assertStringNotContainsString('x-ms-request-id=', $log);
+        $this->assertStringNotContainsString('private document', $log);
+    }
+
     #[DataProvider('decimalCaps')]
     public function testTokenCapsUseDecimalLeadingZeros($cap, $expected): void {
         $this->assertNotNull($this->client($this->success(), cap: $cap)->chatCompletion('JSON', 'Text'));
