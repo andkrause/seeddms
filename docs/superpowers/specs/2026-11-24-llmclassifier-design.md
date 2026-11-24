@@ -63,3 +63,25 @@ PHPUnit suite and PHP syntax checks, and verify actual SeedDMS save/reload in an
 isolated container with temporary settings only. Check the production package.
 If intermittent failures cannot be reproduced locally, explicitly report that
 limitation and request a new diagnostic log from the affected deployment.
+
+## Approved correction: provider error messages (2026-11-24)
+
+The merged diagnostics (PR #27) logged only status, identifiers and identifier-style
+codes. A real HTTP 401 therefore still did not say why authentication failed. The
+user approved reversing the blanket suppression of provider messages.
+
+- Log the provider's error message (SDK `getErrorMessage()`, and
+  `getErrorCode()`/`getErrorType()` even when not identifier-shaped) in a
+  `message="..."` field for response-bearing API errors.
+- Sanitize before logging: remove the configured API key and Bearer/api-key-looking
+  tokens, strip control characters and collapse whitespace, remove URL query
+  strings/credentials, truncate to 300 characters.
+- Withhold the message entirely if it contains a 24-character fragment of the
+  system prompt or document text sent in that request (providers can echo
+  prompts); log `message=withheld (echoes request content)`.
+- Residual risk: redaction cannot guarantee arbitrary provider text is free of
+  sensitive data. Documented in README.
+- Transport exceptions without a provider response keep the existing
+  controlled descriptions (their messages are not provider explanations).
+- Tests assert a realistic Azure 401 explanation appears, and that keys, echoed
+  document text, URLs and control characters do not. No retries, no config changes.
