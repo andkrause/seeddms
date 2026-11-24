@@ -383,6 +383,33 @@ final class LLMClientTest extends TestCase {
         $this->assertStringContainsString('finish_reason=length', implode(' ', $this->logger->messages));
     }
 
+    public function testUnchangedConfigurationSurvivesIntermittentFailure(): void {
+        $stack = HandlerStack::create(new MockHandler([
+            $this->success(),
+            new ConnectException('timeout', new Request('POST', 'https://example.com'), null, ['errno' => 28]),
+            $this->success()
+        ]));
+        $stack->push(Middleware::history($this->history));
+        $client = new SeedDMS_LLMClient('https://example.com/openai/v1', 'test-key', 'deployment', null, null, $this->logger, 'responses', 'api-key', new Client(['handler' => $stack]), 'low', '1200');
+        $expected = ['name' => 'Invoice', 'categories' => ['Invoices'], 'keywords' => ['Steuer']];
+        $this->assertSame($expected, $client->chatCompletion('JSON', 'Document'));
+        $this->assertNull($client->chatCompletion('JSON', 'Document'));
+        $this->assertSame($expected, $client->chatCompletion('JSON', 'Document'));
+        $this->assertCount(3, $this->history);
+        foreach ($this->history as $transaction) {
+            $request = $transaction['request'];
+            $this->assertSame('https://example.com/openai/v1/responses', (string)$request->getUri());
+            $this->assertSame('test-key', $request->getHeaderLine('api-key'));
+            $this->assertFalse($request->hasHeader('Authorization'));
+            $body = json_decode((string)$request->getBody(), true);
+            $this->assertSame('deployment', $body['model']);
+            $this->assertSame(['effort' => 'low'], $body['reasoning']);
+            $this->assertSame(1200, $body['max_output_tokens']);
+            $this->assertArrayNotHasKey('temperature', $body);
+            $this->assertSame((string)$this->history[0]['request']->getBody(), (string)$request->getBody());
+        }
+    }
+
     #[DataProvider('decimalCaps')]
     public function testTokenCapsUseDecimalLeadingZeros($cap, $expected): void {
         $this->assertNotNull($this->client($this->success(), cap: $cap)->chatCompletion('JSON', 'Text'));

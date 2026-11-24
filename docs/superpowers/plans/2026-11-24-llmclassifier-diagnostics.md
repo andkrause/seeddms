@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-24-llmclassifier-design.md` (approved).
 
+## Execution evidence
+
+- Task 1: baseline 102 tests/548 assertions; new diagnostics reproduced 13 failures before implementation; then 123 tests/655 assertions passed (PHP 8.5.12).
+- Task 2: 125 tests/707 assertions passed. Actual SeedDMS settings save/reload passed in an isolated container, including success → timeout → success with unchanged settings and fresh requests after saved changes. No config-cache defect reproduced; production intermittency remains unverified.
+
 ## Global Constraints
 
 - Preserve classification-array-or-null behavior and the 120-second timeout.
