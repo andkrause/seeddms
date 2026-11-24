@@ -310,6 +310,50 @@ The extension logs all operations to the SeedDMS log. Look for entries with `[LL
 3. For OpenAI: Verify API key has sufficient credits
 4. For Ollama: Ensure the service is running and model is pulled
 
+Failure diagnostics include the SDK exception class, HTTP status (including
+429 and 5xx), and validated provider error `code`/`type` when the SDK exposes
+them. Validated `x-request-id`, `apim-request-id` and `x-ms-request-id` headers
+can help correlate a failure with provider logs. Raw exception messages and
+response bodies are deliberately withheld because they may echo credentials
+or document text. Unknown transport causes include their exception class;
+structured cURL errors include a number and controlled description, for example:
+
+```text
+LLM API request failed (OpenAI\Exceptions\TransporterException, cause=GuzzleHttp\Exception\ConnectException, cURL 28: Request timed out)
+```
+
+| Diagnostic | Investigate |
+|---|---|
+| cURL 5 / 6 | Proxy/endpoint DNS resolution from the deployment's network |
+| cURL 7 | Connection availability, routing, firewall and proxy settings |
+| cURL 28 | Request timed out; check provider latency, network and model workload |
+| cURL 35 / 60 | TLS handshake or certificate trust; do not disable verification |
+| HTTP 401 | Authentication method, key validity or manually supplied token expiry |
+| HTTP 429 | Provider rate limits/quota and concurrent requests |
+| HTTP 5xx | Provider or gateway availability; correlate request IDs |
+| `status=incomplete`, `reason=max_output_tokens` | Output ceiling exhausted; review the configured cap and reasoning workload |
+| `finish_reason=length` / `content_filter` | Chat token limit or content filtering; partial results are not applied |
+
+The HTTP timeout remains 120 seconds, and the extension does not automatically
+retry failed calls. A subsequent upload may succeed without restarting.
+
+### Intermittent failures with unchanged settings
+
+SeedDMS loads settings for each request and the upload hook constructs a fresh
+classifier. Its settings snapshot is local to that classifier, not a persistent
+cross-request cache. Extension Manager Refresh updates cached **extension
+metadata** after an upgrade; it is not a remedy for intermittent HTTP failures.
+Recovery without a restart does not, by itself, establish a caching defect.
+
+Regression checks cover success → transport failure → success with identical
+request configuration, and actual SeedDMS settings save/reload. No config-cache
+defect has been reproduced in these checks; the reported production failure
+cause remains unverified. After deploying the diagnostic fix, collect the
+failure timestamp and the `[LLMClassifier]` diagnostic line and correlate any
+request ID with provider logs. Do not share keys, prompts, document contents or
+the complete settings file. Other existing informational logs can contain
+document information; share only the relevant failure diagnostics.
+
 ### Keywords not being applied
 
 1. If "Restrict to Configured Keywords" is enabled, verify keywords are configured in SeedDMS

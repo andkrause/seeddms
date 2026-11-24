@@ -5,6 +5,17 @@ All notable changes to the LLM Document Classifier extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Reveal structured transport causes and cURL error numbers without logging raw exception messages.
+- Include HTTP status for SDK rate-limit/server errors, safe provider error codes/types and validated correlation IDs.
+- Identify incomplete Responses reasons and abnormal Chat finish reasons without applying partial metadata.
+
+### Added
+- Regression checks for unchanged settings across success/failure/success, fresh classifier configuration, and actual SeedDMS save/reload.
+- Troubleshooting guidance distinguishing extension metadata caching from intermittent transport failures. The reported production cause remains unverified; no config-cache defect was reproduced locally.
+
 ## [1.1.1] - 2026-11-17
 
 ### Added
