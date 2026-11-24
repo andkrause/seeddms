@@ -294,6 +294,95 @@ final class LLMClientTest extends TestCase {
 
     public static function decimalCaps(): array { return [['01200', 1200], ['0001', 1]]; }
 
+    public static function curlFailures(): array {
+        return [[6, 'DNS resolution failed'], [7, 'Connection failed'], [28, 'Request timed out'], [35, 'TLS handshake failed'], [60, 'TLS certificate verification failed'], [99, 'Transport failed']];
+    }
+
+    #[DataProvider('curlFailures')]
+    public function testTransportCauseIsVisibleWithoutRawMessages($errno, $description): void {
+        $failure = new ConnectException('test-key private document https://user:pass@example.com/?secret=value', new Request('POST', 'https://example.com'), null, ['errno' => $errno, 'error' => 'private document']);
+        $this->assertNull($this->client($failure)->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('cURL ' . $errno, $log);
+        $this->assertStringContainsString($description, $log);
+        $this->assertStringNotContainsString('test-key', $log);
+        $this->assertStringNotContainsString('private document', $log);
+        $this->assertStringNotContainsString('secret=value', $log);
+    }
+
+    public function testTransportWithoutContextIncludesCauseClassOnly(): void {
+        $this->assertNull($this->client(new ConnectException('test-key private document', new Request('POST', 'https://example.com')))->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('GuzzleHttp\\Exception\\ConnectException', $log);
+        $this->assertStringNotContainsString('private document', $log);
+        $this->assertStringNotContainsString('test-key', $log);
+    }
+
+    public static function diagnosticStatuses(): array { return [[401], [429], [503]]; }
+
+    #[DataProvider('diagnosticStatuses')]
+    public function testHttpStatusAndCorrelationIdAreVisible($status): void {
+        $reply = new Response($status, ['Content-Type' => 'application/json', 'x-request-id' => 'req-123', 'apim-request-id' => 'azure-456'], '{"error":{"message":"test-key private document","type":"invalid_request_error","code":"invalid_api_key"}}');
+        $this->assertNull($this->client($reply)->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('HTTP ' . $status, $log);
+        $this->assertStringContainsString('x-request-id=req-123', $log);
+        $this->assertStringContainsString('apim-request-id=azure-456', $log);
+        if ($status === 401) {
+            $this->assertStringContainsString('code=invalid_api_key', $log);
+            $this->assertStringContainsString('type=invalid_request_error', $log);
+        }
+        $this->assertStringNotContainsString('test-key', $log);
+        $this->assertStringNotContainsString('private document', $log);
+    }
+
+    public static function unsafeDiagnostics(): array {
+        return [['private document'], ["private\ndocument"], ['https://example.com/?secret=value'], ['test-key'], ['prefix-test-key-suffix'], [str_repeat('z', 129)], [['unexpected']]];
+    }
+
+    #[DataProvider('unsafeDiagnostics')]
+    public function testUnsafeProviderMetadataIsWithheld($value): void {
+        $reply = new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => ['message' => 'private document', 'type' => $value, 'code' => $value]]));
+        $this->assertNull($this->client($reply)->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringNotContainsString('code=', $log);
+        $this->assertStringNotContainsString('type=', $log);
+        $this->assertStringNotContainsString('private document', $log);
+        $this->assertStringNotContainsString('test-key', $log);
+    }
+
+    public function testUnsafeCorrelationHeaderIsWithheld(): void {
+        $this->assertNull($this->client(new Response(503, ['x-request-id' => 'prefix-test-key-suffix', 'apim-request-id' => 'https://example.com/?secret=value']))->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringNotContainsString('x-request-id=', $log);
+        $this->assertStringNotContainsString('apim-request-id=', $log);
+    }
+
+    public function testIncompleteResponseRevealsReasonWithoutApplyingText(): void {
+        $this->assertNull($this->client($this->success('responses-incomplete'))->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('status=incomplete', $log);
+        $this->assertStringContainsString('reason=max_output_tokens', $log);
+    }
+
+    public function testFailedResponseRevealsCodeNotMessage(): void {
+        $data = json_decode($this->fixture('responses-success'), true);
+        $data['status'] = 'failed';
+        $data['error'] = ['code' => 'server_error', 'message' => 'test-key private document'];
+        $this->assertNull($this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)))->chatCompletion('JSON', 'Text'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('status=failed', $log);
+        $this->assertStringContainsString('code=server_error', $log);
+        $this->assertStringNotContainsString('private document', $log);
+    }
+
+    public function testChatTokenLimitIsVisible(): void {
+        $data = json_decode($this->fixture('chat-success'), true);
+        $data['choices'][0]['finish_reason'] = 'length';
+        $this->assertNull($this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)), format: 'chat_completions')->chatCompletion('JSON', 'Text'));
+        $this->assertStringContainsString('finish_reason=length', implode(' ', $this->logger->messages));
+    }
+
     #[DataProvider('decimalCaps')]
     public function testTokenCapsUseDecimalLeadingZeros($cap, $expected): void {
         $this->assertNotNull($this->client($this->success(), cap: $cap)->chatCompletion('JSON', 'Text'));

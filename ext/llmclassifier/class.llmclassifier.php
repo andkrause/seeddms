@@ -232,13 +232,17 @@ class SeedDMS_LLMClient {
                 ];
                 $response = $client->responses()->create($payload);
                 if ($response->status !== 'completed' || $response->error !== null) {
-                    $this->logError('Responses request was not completed; check deployment limits and content filters.');
+                    $this->logError('Responses request was not completed' . $this->diagnosticFields([
+                        'status' => $response->status,
+                        'reason' => $response->incompleteDetails?->reason,
+                        'code' => $response->error?->code
+                    ]) . '; check deployment limits and content filters.');
                     return null;
                 }
                 foreach ($response->output as $item) {
                     if ($item instanceof \OpenAI\Responses\Responses\Output\OutputMessage) {
                         if ($item->status !== 'completed') {
-                            $this->logError('Responses message was incomplete.');
+                            $this->logError('Responses message was incomplete' . $this->diagnosticFields(['status' => $item->status]) . '.');
                             return null;
                         }
                         foreach ($item->content as $part) {
@@ -257,7 +261,7 @@ class SeedDMS_LLMClient {
                 }
                 $response = $client->chat()->create($payload);
                 if (($response->choices[0]->finishReason ?? null) !== 'stop') {
-                    $this->logError('Chat completion was not finished normally; check content filters and token limits.');
+                    $this->logError('Chat completion was not finished normally' . $this->diagnosticFields(['finish_reason' => $response->choices[0]->finishReason ?? null]) . '; check content filters and token limits.');
                     return null;
                 }
                 $content = $response->choices[0]->message->content ?? null;
@@ -295,8 +299,7 @@ class SeedDMS_LLMClient {
             } elseif ($error instanceof \JsonException) {
                 $this->logError('Failed to parse LLM classification JSON.');
             } else {
-                $code = method_exists($error, 'getStatusCode') ? $error->getStatusCode() : null;
-                $this->logError('LLM API request failed (' . get_class($error) . ($code ? ", HTTP $code" : '') . '); check endpoint, credentials, model support and connectivity.');
+                $this->logError($this->describeFailure($error));
             }
             return null;
         }
@@ -304,6 +307,69 @@ class SeedDMS_LLMClient {
 
     private function getHttpClient() {
         return $this->httpClient ?: new \GuzzleHttp\Client(['timeout' => 120]);
+    }
+
+    private function safeDiagnosticToken($value): ?string {
+        if (!is_string($value) && !is_int($value)) {
+            return null;
+        }
+        $value = (string)$value;
+        if (!preg_match('/\A[A-Za-z0-9_-]{1,128}\z/', $value) ||
+            ($this->apiKey !== '' && strpos($value, $this->apiKey) !== false)) {
+            return null;
+        }
+        return $value;
+    }
+
+    private function diagnosticFields(array $fields): string {
+        $details = [];
+        foreach ($fields as $name => $value) {
+            if (($value = $this->safeDiagnosticToken($value)) !== null) {
+                $details[] = "$name=$value";
+            }
+        }
+        return $details ? ' (' . implode(', ', $details) . ')' : '';
+    }
+
+    private function describeFailure(\Throwable $error): string {
+        $details = [get_class($error)];
+        $response = $error->response ?? null;
+        if ($response instanceof \Psr\Http\Message\ResponseInterface) {
+            $details[] = 'HTTP ' . $response->getStatusCode();
+            foreach (['x-request-id', 'apim-request-id', 'x-ms-request-id'] as $header) {
+                if (($id = $this->safeDiagnosticToken($response->getHeaderLine($header))) !== null) {
+                    $details[] = "$header=$id";
+                }
+            }
+        }
+        if ($error instanceof \OpenAI\Exceptions\ErrorException) {
+            // Malformed provider metadata can violate the SDK's typed getters.
+            foreach (['code' => 'getErrorCode', 'type' => 'getErrorType'] as $name => $method) {
+                try {
+                    $value = $this->safeDiagnosticToken($error->$method());
+                    if ($value !== null) {
+                        $details[] = "$name=$value";
+                    }
+                } catch (\TypeError $ignored) {
+                    // Do not substitute a raw provider message or body.
+                }
+            }
+        }
+        for ($cause = $error->getPrevious(); $cause !== null; $cause = $cause->getPrevious()) {
+            $details[] = 'cause=' . get_class($cause);
+            if ($cause instanceof \GuzzleHttp\Exception\ConnectException || $cause instanceof \GuzzleHttp\Exception\RequestException) {
+                $errno = $cause->getHandlerContext()['errno'] ?? null;
+                if (is_int($errno) && $errno > 0) {
+                    $descriptions = [
+                        5 => 'Proxy DNS resolution failed', 6 => 'DNS resolution failed',
+                        7 => 'Connection failed', 28 => 'Request timed out',
+                        35 => 'TLS handshake failed', 60 => 'TLS certificate verification failed'
+                    ];
+                    $details[] = 'cURL ' . $errno . ': ' . ($descriptions[$errno] ?? 'Transport failed');
+                }
+            }
+        }
+        return 'LLM API request failed (' . implode(', ', $details) . '); check endpoint, credentials, model support and connectivity.';
     }
 
     /**
