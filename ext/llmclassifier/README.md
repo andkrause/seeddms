@@ -314,8 +314,13 @@ Failure diagnostics include the SDK exception class, HTTP status (including
 429 and 5xx), and validated provider error `code`/`type` when the SDK exposes
 them. Validated `x-request-id`, `apim-request-id` and `x-ms-request-id` headers
 can help correlate a failure with provider logs. Raw exception messages and
-response bodies are deliberately withheld because they may echo credentials
-or document text. Unknown transport causes include their exception class;
+response bodies are not logged. For API errors the provider's own explanation
+is logged as `message="..."` (for example why a 401 was rejected), after
+redaction: the configured key, Bearer/token-like strings, URL credentials and
+query strings and control characters are removed and the text is truncated to
+300 characters. If the provider echoes part of the prompt or document, the message
+is replaced by `message=withheld (echoes request content)`. Redaction cannot
+guarantee that arbitrary provider text is free of sensitive data. Unknown transport causes include their exception class;
 structured cURL errors include a number and controlled description, for example:
 
 ```text

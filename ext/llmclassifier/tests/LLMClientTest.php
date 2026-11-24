@@ -165,7 +165,9 @@ final class LLMClientTest extends TestCase {
         $this->assertNull($this->client($reply)->chatCompletion('JSON', 'Text'));
         $this->assertNotEmpty($this->logger->messages);
         $this->assertStringNotContainsString('test-key', implode(' ', $this->logger->messages));
-        $this->assertStringNotContainsString('secret document', implode(' ', $this->logger->messages));
+        if ($code === 200) {
+            $this->assertStringNotContainsString('secret document', implode(' ', $this->logger->messages));
+        }
     }
 
     public function testConnectionFailureReturnsNull(): void {
@@ -333,7 +335,6 @@ final class LLMClientTest extends TestCase {
             $this->assertStringContainsString('type=invalid_request_error', $log);
         }
         $this->assertStringNotContainsString('test-key', $log);
-        $this->assertStringNotContainsString('private document', $log);
     }
 
     public static function unsafeDiagnostics(): array {
@@ -341,14 +342,14 @@ final class LLMClientTest extends TestCase {
     }
 
     #[DataProvider('unsafeDiagnostics')]
-    public function testUnsafeProviderMetadataIsWithheld($value): void {
-        $reply = new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => ['message' => 'private document', 'type' => $value, 'code' => $value]]));
+    public function testUnsafeProviderMetadataIsSanitized($value): void {
+        $reply = new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => ['message' => $value, 'type' => $value, 'code' => $value]]));
         $this->assertNull($this->client($reply)->chatCompletion('JSON', 'Text'));
         $log = implode(' ', $this->logger->messages);
-        $this->assertStringNotContainsString('code=', $log);
-        $this->assertStringNotContainsString('type=', $log);
-        $this->assertStringNotContainsString('private document', $log);
         $this->assertStringNotContainsString('test-key', $log);
+        $this->assertStringNotContainsString('secret=value', $log);
+        $this->assertStringNotContainsString("\n", $log);
+        $this->assertLessThan(1200, strlen($log));
     }
 
     public function testUnsafeCorrelationHeaderIsWithheld(): void {
@@ -381,6 +382,48 @@ final class LLMClientTest extends TestCase {
         $data['choices'][0]['finish_reason'] = 'length';
         $this->assertNull($this->client(new Response(200, ['Content-Type' => 'application/json'], json_encode($data)), format: 'chat_completions')->chatCompletion('JSON', 'Text'));
         $this->assertStringContainsString('finish_reason=length', implode(' ', $this->logger->messages));
+    }
+
+    private function errorReply(int $status, array $error): Response {
+        return new Response($status, ['Content-Type' => 'application/json'], json_encode(['error' => $error]));
+    }
+
+    public function testAzureUnauthorizedExplanationIsLogged(): void {
+        $text = 'Access denied due to invalid subscription key or wrong API endpoint. Make sure to provide a valid key for an active subscription and use a correct regional API endpoint for your resource.';
+        $this->assertNull($this->client($this->errorReply(401, ['code' => '401', 'message' => $text]))->chatCompletion('JSON', 'Document'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('HTTP 401', $log);
+        $this->assertStringContainsString('code=401', $log);
+        $this->assertStringContainsString('message="' . mb_substr($text, 0, 300) . '"', $log);
+    }
+
+    public function testNonIdentifierCodeAndTypeAreLogged(): void {
+        $this->assertNull($this->client($this->errorReply(403, ['code' => 'Permission Denied', 'type' => 'invalid request', 'message' => 'No access']))->chatCompletion('JSON', 'Document'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('code="Permission Denied"', $log);
+        $this->assertStringContainsString('type="invalid request"', $log);
+    }
+
+    public function testProviderMessageIsRedactedAndBounded(): void {
+        $message = "Bad key test-key and Bearer abc.def-123 at https://user:pass@host.example/path?api-key=secret#x\n\tline\x07" . str_repeat('z', 400);
+        $this->assertNull($this->client($this->errorReply(401, ['message' => $message]))->chatCompletion('JSON', 'Document'));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringNotContainsString('test-key', $log);
+        $this->assertStringNotContainsString('abc.def-123', $log);
+        $this->assertStringNotContainsString('user:pass', $log);
+        $this->assertStringNotContainsString('api-key=secret', $log);
+        $this->assertStringNotContainsString("\x07", $log);
+        $this->assertStringContainsString('https://host.example/path', $log);
+        preg_match('/message="([^"]*)"/', $log, $match);
+        $this->assertLessThanOrEqual(303, mb_strlen($match[1]));
+    }
+
+    public function testProviderMessageEchoingDocumentIsWithheld(): void {
+        $document = 'Invoice 4711 from Example Corp totalling EUR 1234.56';
+        $this->assertNull($this->client($this->errorReply(400, ['message' => "Invalid content: $document"]))->chatCompletion('System JSON', $document));
+        $log = implode(' ', $this->logger->messages);
+        $this->assertStringContainsString('message=withheld (echoes request content)', $log);
+        $this->assertStringNotContainsString('Invoice 4711', $log);
     }
 
     public function testUnchangedConfigurationSurvivesIntermittentFailure(): void {

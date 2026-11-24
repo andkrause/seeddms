@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Log the provider's error explanation (`message="..."`) and non-identifier `code`/`type` for API errors such as HTTP 401, with key/token/URL redaction, 300-character truncation, and withholding when the provider echoes request content.
+
+### Fixed
 - Reveal structured transport causes and cURL error numbers without logging raw exception messages.
 - Include HTTP status for SDK rate-limit/server errors, safe provider error codes/types and validated correlation IDs.
 - Identify incomplete Responses reasons and abnormal Chat finish reasons without applying partial metadata.
