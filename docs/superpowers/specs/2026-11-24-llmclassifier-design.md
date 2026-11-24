@@ -1,6 +1,6 @@
 # LLM Classifier — Intermittent Failures and Safe Diagnostics
 
-Status: Proposed; implementation requires explicit user approval.
+Status: Approved by the user on 2026-11-24.
 
 ## Intent and evidence
 
@@ -16,6 +16,10 @@ failure logs actionable without exposing credentials or document content.
   their SDK exceptions expose a response, not getStatusCode().
 - The screenshot alone cannot establish the intermittent production cause.
   DNS, TLS, connection and timeout failures remain possibilities, not findings.
+- The user confirms successful and failed calls alternate with unchanged
+  configuration, and recovery requires no restart. The intermittent-failure
+  issue remains open until its cause is established; improved logging alone
+  is not a claim that those failures are fixed.
 
 ## Approaches
 
