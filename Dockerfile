@@ -1,11 +1,12 @@
 # Build locked production SDK dependencies without Composer in the final image.
-FROM composer:2 AS llmclassifier-dependencies
+FROM andy008/php4seeddms:8.6.0-apache-trixie AS llmclassifier-dependencies
 WORKDIR /app
 COPY ext/llmclassifier/composer.json ext/llmclassifier/composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+RUN --mount=type=bind,from=composer:2,source=/usr/bin/composer,target=/usr/bin/composer \
+    composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
 # Stage 1: Download and extract SeedDMS
-FROM andy008/php4seeddms:8.5.12-apache-trixie AS downloader
+FROM andy008/php4seeddms:8.6.0-apache-trixie AS downloader
 
 # Install curl and xz-utils for downloading
 RUN apt-get update && \
@@ -51,7 +52,7 @@ RUN cp "$PHP_INI_DIR/php.ini-production" . \
         && ./php-ini-customizer.sh --overwrites php-ini-overwrites.txt --php-ini-file php.ini-production
 
 # Stage 2: Final image
-FROM andy008/php4seeddms:8.5.12-apache-trixie
+FROM andy008/php4seeddms:8.6.0-apache-trixie
 
 # Set Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/seeddms/seeddms60x/www/
