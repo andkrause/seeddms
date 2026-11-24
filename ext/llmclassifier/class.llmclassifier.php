@@ -299,7 +299,7 @@ class SeedDMS_LLMClient {
             } elseif ($error instanceof \JsonException) {
                 $this->logError('Failed to parse LLM classification JSON.');
             } else {
-                $this->logError($this->describeFailure($error));
+                $this->logError($this->describeFailure($error, (string)$systemPrompt, (string)$userMessage));
             }
             return null;
         }
@@ -340,7 +340,30 @@ class SeedDMS_LLMClient {
         ];
     }
 
-    private function describeFailure(\Throwable $error): string {
+    private function sanitizeProviderText(string $text, string $systemPrompt = '', string $userMessage = ''): ?string {
+        $text = preg_replace('/[\x00-\x20\x7f]+/u', ' ', $text) ?? '';
+        $text = trim($text);
+        $flat = fn (string $value): string => trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+        foreach ([$systemPrompt, $userMessage] as $source) {
+            $source = $flat($source);
+            for ($i = 0, $max = mb_strlen($source) - 24; $i <= $max; $i++) {
+                if (mb_strpos($text, mb_substr($source, $i, 24)) !== false) {
+                    return null;
+                }
+            }
+        }
+        if ($this->apiKey !== '') {
+            $text = str_replace($this->apiKey, '[redacted]', $text);
+        }
+        $text = preg_replace('~(https?://)[^/\s@]*@~i', '$1', $text);
+        $text = preg_replace('~([?#])\S*~', '', $text);
+        $text = preg_replace('/\b(Bearer|Basic)\s+\S+/i', '$1 [redacted]', $text);
+        $text = preg_replace('/\b(api[-_]?key|token|secret|password)\s*[=:]\s*\S+/i', '$1=[redacted]', $text);
+        $text = str_replace('"', "'", $text);
+        return mb_strlen($text) > 300 ? mb_substr($text, 0, 300) . '...' : $text;
+    }
+
+    private function describeFailure(\Throwable $error, string $systemPrompt = '', string $userMessage = ''): string {
         $details = [get_class($error)];
         $response = $error->response ?? null;
         if ($response instanceof \Psr\Http\Message\ResponseInterface) {
@@ -352,15 +375,25 @@ class SeedDMS_LLMClient {
             }
         }
         if ($error instanceof \OpenAI\Exceptions\ErrorException) {
-            // Malformed provider metadata can violate the SDK's typed getters.
-            foreach (['code' => 'getErrorCode', 'type' => 'getErrorType'] as $name => $method) {
+            // Provider metadata is untrusted and may violate the SDK's typed getters.
+            foreach (['code' => 'getErrorCode', 'type' => 'getErrorType', 'message' => 'getErrorMessage'] as $name => $method) {
                 try {
-                    $value = $this->safeDiagnosticToken($error->$method());
-                    if ($value !== null) {
-                        $details[] = "$name=$value";
-                    }
+                    $value = $error->$method();
                 } catch (\TypeError $ignored) {
-                    // Do not substitute a raw provider message or body.
+                    continue;
+                }
+                if (!is_string($value) && !is_int($value)) {
+                    continue;
+                }
+                if ($name !== 'message' && ($token = $this->safeDiagnosticToken($value)) !== null) {
+                    $details[] = "$name=$token";
+                    continue;
+                }
+                $clean = $this->sanitizeProviderText((string)$value, $name === 'message' ? $systemPrompt : '', $name === 'message' ? $userMessage : '');
+                if ($clean === null) {
+                    $details[] = "$name=withheld (echoes request content)";
+                } elseif ($clean !== '') {
+                    $details[] = "$name=\"$clean\"";
                 }
             }
         }
