@@ -81,4 +81,42 @@ final class ConfigurationTest extends TestCase {
             }
         }
     }
+
+    public function testFreshClassifiersUseCurrentSettingsWithoutCrossInstanceCache(): void {
+        $settings = (object)['_extensions' => ['llmclassifier' => [
+            'llm_endpoint' => 'https://first.example/openai/v1', 'llm_api_key' => 'first-key',
+            'llm_model' => 'first-model', 'llm_api_format' => 'responses', 'llm_auth_method' => 'api-key',
+            'llm_reasoning_effort' => 'low', 'llm_max_output_tokens' => '1200', 'pdftotext_path' => '/bin/true'
+        ]]];
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler(array_fill(0, 3, new Response(200, ['Content-Type' => 'application/json'], file_get_contents(__DIR__ . '/fixtures/responses-success.json')))));
+        $stack->push(Middleware::history($history));
+        for ($i = 0; $i < 3; $i++) {
+            if ($i === 2) {
+                $settings->_extensions['llmclassifier'] = [
+                    'llm_endpoint' => 'https://second.example/openai/v1', 'llm_api_key' => 'second-key',
+                    'llm_model' => 'second-model', 'llm_api_format' => 'responses', 'llm_auth_method' => 'bearer',
+                    'pdftotext_path' => '/bin/true'
+                ];
+            }
+            $classifier = new SeedDMS_DocumentClassifier($settings, new stdClass(), null);
+            $adapter = (new ReflectionProperty($classifier, 'llmClient'))->getValue($classifier);
+            (new ReflectionProperty($adapter, 'httpClient'))->setValue($adapter, new Client(['handler' => $stack]));
+            $this->assertNotNull($adapter->chatCompletion('JSON', 'Document'));
+            $request = $history[$i]['request'];
+            $body = json_decode((string)$request->getBody(), true);
+            $this->assertSame($i === 2 ? 'https://second.example/openai/v1/responses' : 'https://first.example/openai/v1/responses', (string)$request->getUri());
+            $this->assertSame($i === 2 ? '' : 'first-key', $request->getHeaderLine('api-key'));
+            $this->assertSame($i === 2 ? 'Bearer second-key' : '', $request->getHeaderLine('Authorization'));
+            $this->assertSame($i === 2 ? 'second-model' : 'first-model', $body['model']);
+            if ($i === 2) {
+                $this->assertArrayNotHasKey('reasoning', $body);
+                $this->assertArrayNotHasKey('max_output_tokens', $body);
+            } else {
+                $this->assertSame(['effort' => 'low'], $body['reasoning']);
+                $this->assertSame(1200, $body['max_output_tokens']);
+            }
+            $this->assertArrayNotHasKey('temperature', $body);
+        }
+    }
 }

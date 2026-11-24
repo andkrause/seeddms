@@ -57,6 +57,50 @@ try {
         throw new RuntimeException('Invalid zero cap was discarded instead of preserved for validation');
     }
     echo "SeedDMS saved-zero cap rejection passed\n";
+    $history = [];
+    $success = new GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], file_get_contents(__DIR__ . '/fixtures/responses-success.json'));
+    $stack = GuzzleHttp\HandlerStack::create(new GuzzleHttp\Handler\MockHandler([
+        $success,
+        new GuzzleHttp\Exception\ConnectException('timeout', new GuzzleHttp\Psr7\Request('POST', 'https://example.com'), null, ['errno' => 28]),
+        $success, $success
+    ]));
+    $stack->push(GuzzleHttp\Middleware::history($history));
+    $settings->_extensions['llmclassifier']['llm_max_output_tokens'] = '1200';
+    $settings->_extensions['llmclassifier']['llm_api_key'] = 'first-test-key';
+    $settings->save();
+    for ($i = 0; $i < 4; $i++) {
+        if ($i === 3) {
+            $settings->_extensions['llmclassifier']['llm_endpoint'] = 'https://updated.example/openai/v1';
+            $settings->_extensions['llmclassifier']['llm_model'] = 'updated-model';
+            $settings->_extensions['llmclassifier']['llm_api_key'] = 'updated-test-key';
+            $settings->_extensions['llmclassifier']['llm_max_output_tokens'] = '';
+            $settings->_extensions['llmclassifier']['llm_reasoning_effort'] = '';
+            $settings->save();
+        }
+        $reloaded = new Seeddms\Seeddms\Settings($file);
+        $classifier = new SeedDMS_DocumentClassifier($reloaded, new stdClass(), null);
+        $adapter = (new ReflectionProperty($classifier, 'llmClient'))->getValue($classifier);
+        (new ReflectionProperty($adapter, 'httpClient'))->setValue($adapter, new GuzzleHttp\Client(['handler' => $stack]));
+        $result = $adapter->chatCompletion('JSON', 'Document');
+        if (($result === null) !== ($i === 1)) { throw new RuntimeException('Unexpected intermittent recovery result'); }
+        $request = $history[$i]['request'];
+        $payload = json_decode((string)$request->getBody(), true);
+        $expectedUrl = $i === 3 ? 'https://updated.example/openai/v1/responses' : 'https://example.com/openai/v1/responses';
+        if ((string)$request->getUri() !== $expectedUrl || $payload['model'] !== ($i === 3 ? 'updated-model' : 'deployment')) {
+            throw new RuntimeException('Persisted request configuration was stale');
+        }
+        if ($i < 3 && (string)$request->getBody() !== (string)$history[0]['request']->getBody()) {
+            throw new RuntimeException('Unchanged persisted configuration changed after failure');
+        }
+        if ($i === 3 && (isset($payload['reasoning']) || isset($payload['max_output_tokens']))) {
+            throw new RuntimeException('Cleared optional settings remained cached');
+        }
+        $key = (new ReflectionProperty($adapter, 'apiKey'))->getValue($adapter);
+        if ($key !== ($i === 3 ? 'updated-test-key' : 'first-test-key')) {
+            throw new RuntimeException('Persisted API key was stale');
+        }
+    }
+    echo "SeedDMS unchanged settings recovery and updated settings reload passed\n";
 } finally {
     unlink($file);
 }
